@@ -1,0 +1,40 @@
+0 HEAD
+1 SOUR family-health-tests
+1 GEDC
+2 VERS 5.5.1
+2 FORM LINEAGE-LINKED
+1 CHAR UTF-8
+0 @I1@ INDI
+1 NAME Theodor /Gesund/
+1 SEX M
+1 BIRT
+2 DATE 1 MAR 1900
+1 DEAT
+2 DATE 5 MAY 1970
+2 CAUS Herzinfarkt
+1 FAMS @F1@
+0 @I2@ INDI
+1 NAME Maria /Gesund/
+1 SEX F
+1 BIRT
+2 DATE 2 APR 1905
+1 FACT Diabetes mellitus Typ 2
+2 TYPE Erkrankung
+2 DATE ABT 1960
+2 RESN confidential
+1 DEAT
+2 DATE 1980
+1 FAMS @F1@
+0 @I3@ INDI
+1 NAME Paul /Gesund/
+1 SEX M
+1 BIRT
+2 DATE 3 JUN 1930
+1 DEAT
+2 DATE 2000
+1 FAMC @F1@
+0 @F1@ FAM
+1 HUSB @I1@
+1 WIFE @I2@
+1 CHIL @I3@
+0 TRLR

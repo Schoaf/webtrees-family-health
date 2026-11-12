@@ -1,0 +1,38 @@
+<?php
+
+declare(strict_types=1);
+
+use Fisharebest\Webtrees\Http\RequestHandlers\ControlPanel;
+use Fisharebest\Webtrees\Http\RequestHandlers\ModulesAllPage;
+use Fisharebest\Webtrees\I18N;
+
+/**
+ * @var string $title
+ * @var int    $max_degree
+ * @var int    $limit
+ */
+
+?>
+
+<?= view('components/breadcrumbs', ['links' => [route(ControlPanel::class) => I18N::translate('Control panel'), route(ModulesAllPage::class) => I18N::translate('Modules'), $title]]) ?>
+
+<h1><?= e($title) ?></h1>
+
+<form method="post">
+    <?= csrf_field() ?>
+
+    <div class="row mb-3">
+        <label class="col-sm-3 col-form-label" for="max_degree"><?= I18N::translate('Visible up to degree of relationship') ?></label>
+        <div class="col-sm-9">
+            <select class="form-select" id="max_degree" name="max_degree">
+                <option value="0" <?= $max_degree === 0 ? 'selected' : '' ?>><?= I18N::translate('no limit') ?></option>
+                <?php for ($degree = 1; $degree <= $limit; $degree++) : ?>
+                    <option value="<?= $degree ?>" <?= $max_degree === $degree ? 'selected' : '' ?>><?= I18N::number($degree) ?></option>
+                <?php endfor ?>
+            </select>
+            <div class="form-text"><?= I18N::translate('Illnesses are shown for blood relatives of your own individual and of your children under 18 – optionally only up to this degree.') ?></div>
+        </div>
+    </div>
+
+    <button type="submit" class="btn btn-primary"><?= I18N::translate('save') ?></button>
+</form>

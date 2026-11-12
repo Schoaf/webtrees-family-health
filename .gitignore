@@ -1,0 +1,5 @@
+*.zip
+# Testumgebung (tests/umgebung.py)
+tests/.work/
+tests/.cache/
+tests/__pycache__/
