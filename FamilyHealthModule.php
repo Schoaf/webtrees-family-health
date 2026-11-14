@@ -60,6 +60,8 @@ class FamilyHealthModule extends AbstractModule implements ModuleCustomInterface
     // The page is for signed-in members; visitors don't see the menu item (changeable in the control panel).
     protected int $access_level = Auth::PRIV_USER;
 
+    private Catalog|null $catalog = null;
+
     public function title(): string
     {
         return I18N::translate('Family health');
@@ -139,7 +141,7 @@ class FamilyHealthModule extends AbstractModule implements ModuleCustomInterface
             'title'     => $this->title(),
             'tree'      => $tree,
             'is_linked' => $tree->getUserPreference($user, UserInterface::PREF_TREE_ACCOUNT_XREF) !== '',
-            'illnesses' => Illnesses::visibleTo($tree, $user, $this->maxDegree()),
+            'illnesses' => Illnesses::visibleTo($tree, $user, $this->maxDegree(), $this->catalog()),
         ]);
     }
 
@@ -157,11 +159,37 @@ class FamilyHealthModule extends AbstractModule implements ModuleCustomInterface
             'xref'    => $entry['individual']->xref(),
             'name'    => strip_tags($entry['individual']->fullName()),
             'illness' => $entry['illness'],
+            'category' => $entry['category'],
             'date'    => $entry['date'],
             'degree'  => $entry['degree'],
-        ], Illnesses::visibleTo($tree, $user, $this->maxDegree()));
+        ], Illnesses::visibleTo($tree, $user, $this->maxDegree(), $this->catalog()));
 
         return response(['illnesses' => $illnesses]);
+    }
+
+    /**
+     * JSON for apps: the categories and the catalog - the suggestions when entering an illness.
+     */
+    public function getCatalogAction(ServerRequestInterface $request): ResponseInterface
+    {
+        $tree = Validator::attributes($request)->tree();
+        $user = Validator::attributes($request)->user();
+
+        Auth::checkComponentAccess($this, ModuleListInterface::class, $tree, $user);
+
+        $categories = [];
+
+        foreach (Catalog::categoryNames() as $id => $name) {
+            $categories[] = ['id' => $id, 'name' => $name];
+        }
+
+        $entries = [];
+
+        foreach ($this->catalog()->entries() as $name => $entry) {
+            $entries[] = ['name' => $name] + $entry;
+        }
+
+        return response(['categories' => $categories, 'illnesses' => $entries]);
     }
 
     public function getAdminAction(ServerRequestInterface $request): ResponseInterface
@@ -172,6 +200,10 @@ class FamilyHealthModule extends AbstractModule implements ModuleCustomInterface
             'title'      => $this->title(),
             'max_degree' => $this->maxDegree(),
             'limit'      => self::MAX_DEGREE_LIMIT,
+            'categories' => Catalog::categoryNames(),
+            'catalog'    => $this->catalog()->entries(),
+            'missing'    => $this->catalog()->namesNotInCatalog(),
+            'max_length' => Catalog::NAME_MAX_LENGTH,
         ]);
     }
 
@@ -185,9 +217,28 @@ class FamilyHealthModule extends AbstractModule implements ModuleCustomInterface
 
         $this->setPreference(self::MAX_DEGREE_SETTING, (string) $max_degree);
 
+        // The catalog as rows of the form; a row without a category, or marked for deletion, is left out. Only when
+        // the form had the catalog at all - a post without it keeps the catalog as it is.
+        if (Validator::parsedBody($request)->string('catalog_form', '') === '1') {
+            $entries = [];
+
+            foreach (Validator::parsedBody($request)->array('entries') as $row) {
+                if (is_array($row) && ($row['delete'] ?? '') === '') {
+                    $entries[(string) ($row['name'] ?? '')] = ['category' => (string) ($row['category'] ?? ''), 'icd' => (string) ($row['icd'] ?? '')];
+                }
+            }
+
+            $this->catalog()->save($entries);
+        }
+
         FlashMessages::addMessage(I18N::translate('The preferences for the module “%s” have been updated.', $this->title()), 'success');
 
         return redirect($this->getConfigLink());
+    }
+
+    public function catalog(): Catalog
+    {
+        return $this->catalog ??= new Catalog($this);
     }
 
     /**

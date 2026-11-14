@@ -77,6 +77,44 @@ class ModulTest(unittest.TestCase):
         finally:
             admin.formular("Admin", {"max_degree": "0"})
 
+    def test_katalog(self):
+        admin = U.sitzung("admin")
+        seite = admin.get("Admin").text
+        # Startliste in der Sprache des Servers, Namen aus dem Baum ohne Kategorie zum Aufnehmen angeboten
+        self.assertIn('value="Brustkrebs"', seite)
+        self.assertIn('value="Markermutter"', seite)
+        katalog = U.sitzung("mitglied").get("Catalog", "testbaum").json
+        self.assertIn({"id": "cancer", "name": "Krebs"}, katalog["categories"])
+        self.assertIn({"name": "Brustkrebs", "category": "cancer", "icd": "C50"}, katalog["illnesses"])
+        # Ohne Kategorie: "Sonstiges"
+        self.assertEqual("other", self._kategorie("Markermutter"))
+        try:
+            felder = {"catalog_form": "1", "max_degree": "0",
+                      "entries[0][name]": "Markermutter", "entries[0][category]": "metabolic", "entries[0][icd]": "e11",
+                      "entries[1][name]": "Brustkrebs", "entries[1][category]": "cancer", "entries[1][icd]": "C50", "entries[1][delete]": "1",
+                      "entries[2][name]": "markermutter", "entries[2][category]": "cancer",
+                      "entries[3][name]": "Kaputt", "entries[3][category]": "unbekannt",
+                      "entries[4][name]": "Ohne Kategorie", "entries[4][category]": ""}
+            self.assertIn(admin.formular("Admin", felder).status, (302, 303))
+            namen = {e["name"]: e for e in U.sitzung("mitglied").get("Catalog", "testbaum").json["illnesses"]}
+            # Gross geschriebener ICD-Code, Doppelte (ohne Ruecksicht auf Gross/klein), unbekannte Kategorie und leere
+            # Kategorie fallen weg; geloeschte Zeile auch.
+            self.assertEqual({"Markermutter": {"name": "Markermutter", "category": "metabolic", "icd": "E11"}}, namen)
+            self.assertEqual("metabolic", self._kategorie("Markermutter"))
+            # Formular ohne Katalog (nur Grad) laesst den Katalog stehen
+            admin.formular("Admin", {"max_degree": "0"})
+            self.assertEqual(1, len(U.sitzung("mitglied").get("Catalog", "testbaum").json["illnesses"]))
+        finally:
+            umgebung.sql("DELETE FROM wt_module_setting WHERE module_name='_family-health_' AND setting_name='catalog'")
+
+    def _kategorie(self, krankheit):
+        for e in U.sitzung("mitglied").get("Illnesses", "testbaum").json["illnesses"]:
+            if e["illness"] == krankheit:
+                return e["category"]
+
+    def test_katalog_nur_fuer_mitglieder(self):
+        self.assertNotEqual(200, U.sitzung().get("Catalog", "testbaum").status)
+
     def test_ohne_person_ein_hinweis(self):
         self.assertIn("keiner Person", U.sitzung("admin").get("List", "testbaum").text)
 

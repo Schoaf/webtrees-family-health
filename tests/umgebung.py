@@ -132,6 +132,7 @@ class Umgebung:
             raise RuntimeError("webtrees-Einrichtung fehlgeschlagen, siehe tests/.work/php.log")
 
         wt("site-setting", "USE_REGISTRATION_MODULE", "0")
+        wt("site-setting", "LANGUAGE", "de")
         wt("tree", "testbaum", "--create", "--title=Testbaum")
         wt("tree-import", "testbaum", os.path.join(HIER, "testbaum.ged"))
         wt("tree-setting", "testbaum", "HIDE_LIVE_PEOPLE", "1")

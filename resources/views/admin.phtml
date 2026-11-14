@@ -7,10 +7,33 @@ use Fisharebest\Webtrees\Http\RequestHandlers\ModulesAllPage;
 use Fisharebest\Webtrees\I18N;
 
 /**
- * @var string $title
- * @var int    $max_degree
- * @var int    $limit
+ * @var string                                          $title
+ * @var int                                             $max_degree
+ * @var int                                             $limit
+ * @var array<string,string>                            $categories
+ * @var array<string,array{category:string,icd:string}> $catalog
+ * @var list<string>                                    $missing
+ * @var int                                             $max_length
  */
+
+// One row of the catalog table: name, category, ICD-10 code, delete.
+$row = static function (int $i, string $name, string $category, string $icd, bool $is_new) use ($categories, $max_length): string {
+    // A new row may stay without category - then it is not added.
+    $options = $is_new ? '<option value=""></option>' : '';
+
+    foreach ($categories as $id => $label) {
+        $options .= '<option value="' . e($id) . '"' . ($id === $category ? ' selected' : '') . '>' . e($label) . '</option>';
+    }
+
+    return '<tr>'
+        . '<td><input class="form-control form-control-sm" name="entries[' . $i . '][name]" value="' . e($name) . '" maxlength="' . $max_length . '"></td>'
+        . '<td><select class="form-select form-select-sm" name="entries[' . $i . '][category]">' . $options . '</select></td>'
+        . '<td><input class="form-control form-control-sm" name="entries[' . $i . '][icd]" value="' . e($icd) . '" size="7" pattern="[A-Za-z][0-9]{2}(\.[0-9A-Za-z]{1,4})?"></td>'
+        . '<td>' . ($is_new ? '' : '<input class="form-check-input" type="checkbox" name="entries[' . $i . '][delete]" value="1" aria-label="' . e(I18N::translate('Delete')) . '">') . '</td>'
+        . '</tr>';
+};
+
+$i = 0;
 
 ?>
 
@@ -20,6 +43,7 @@ use Fisharebest\Webtrees\I18N;
 
 <form method="post">
     <?= csrf_field() ?>
+    <input type="hidden" name="catalog_form" value="1">
 
     <div class="row mb-3">
         <label class="col-sm-3 col-form-label" for="max_degree"><?= I18N::translate('Visible up to degree of relationship') ?></label>
@@ -33,6 +57,33 @@ use Fisharebest\Webtrees\I18N;
             <div class="form-text"><?= I18N::translate('Illnesses are shown for blood relatives of your own individual and of your children under 18 – optionally only up to this degree.') ?></div>
         </div>
     </div>
+
+    <h2 class="h4"><?= I18N::translate('Illness catalog') ?></h2>
+    <p class="form-text"><?= I18N::translate('Each illness name with its category and, if you like, its ICD-10 code. The names are suggested when entering an illness, so the same illness is always spelled the same way.') ?></p>
+
+    <?php if ($missing !== []) : ?>
+        <div class="alert alert-warning"><?= I18N::translate('These names are used in a family tree but are not in the catalog yet. Choose a category to add them.') ?></div>
+    <?php endif ?>
+
+    <table class="table table-sm align-middle">
+        <thead>
+            <tr>
+                <th><?= I18N::translate('Illness') ?></th>
+                <th><?= I18N::translate('Category') ?></th>
+                <th><?= I18N::translate('ICD-10') ?></th>
+                <th><?= I18N::translate('Delete') ?></th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php foreach ($missing as $name) : ?>
+                <?= $row($i++, $name, '', '', true) ?>
+            <?php endforeach ?>
+            <?php foreach ($catalog as $name => $entry) : ?>
+                <?= $row($i++, $name, $entry['category'], $entry['icd'], false) ?>
+            <?php endforeach ?>
+            <?= $row($i++, '', '', '', true) ?>
+        </tbody>
+    </table>
 
     <button type="submit" class="btn btn-primary"><?= I18N::translate('save') ?></button>
 </form>

@@ -63,9 +63,9 @@ final class Illnesses
     }
 
     /**
-     * @return list<array{individual:Individual,illness:string,date:string,degree:int}>
+     * @return list<array{individual:Individual,illness:string,category:string,date:string,degree:int}>
      */
-    public static function visibleTo(Tree $tree, UserInterface $user, int $max_degree): array
+    public static function visibleTo(Tree $tree, UserInterface $user, int $max_degree, Catalog $catalog): array
     {
         $visible   = self::visibleIndividuals($tree, $user, $max_degree);
         $illnesses = [];
@@ -87,7 +87,13 @@ final class Illnesses
                 }
 
                 foreach ($found as [$illness, $date]) {
-                    $illnesses[] = ['individual' => $individual, 'illness' => $illness, 'date' => $date, 'degree' => $visible[$row->i_id]];
+                    $illnesses[] = [
+                        'individual' => $individual,
+                        'illness'    => $illness,
+                        'category'   => $catalog->find($illness)['category'] ?? 'other',
+                        'date'       => $date,
+                        'degree'     => $visible[$row->i_id],
+                    ];
                 }
             }
         }
@@ -98,7 +104,7 @@ final class Illnesses
     /**
      * @return list<array{0:string,1:string}> illness name and GEDCOM date
      */
-    private static function illnessesIn(string $gedcom): array
+    public static function illnessesIn(string $gedcom): array
     {
         $found = [];
 

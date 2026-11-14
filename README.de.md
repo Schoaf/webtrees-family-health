@@ -5,7 +5,7 @@
 Erkrankungen im Stammbaum erfassen und für den Arzt zusammenfassen: *„Gab es das in Ihrer Familie schon?“*
 
 > In Arbeit – bisher die Sichtbarkeitsregel und eine einfache Liste der Erkrankungen, die man sehen darf (Seite
-> „Familiengesundheit“, Menü *Listen*, und JSON `Illnesses/{baum}` für Apps). Katalog, Kategorien und Eingabe folgen.
+> „Familiengesundheit“, Menü *Listen*, und JSON `Illnesses/{baum}` für Apps) und der Katalog. Die Eingabe folgt.
 > Der Plan steht in [webtrees-mobile#54](https://github.com/Schoaf/webtrees-mobile/issues/54).
 
 ## Wie Erkrankungen gespeichert werden
@@ -32,6 +32,18 @@ Der Grad ist der genetische, nach dem Ärzte fragen: Eltern, Kinder und Geschwis
 Nichten, Neffen und Halbgeschwister 2., Cousins und Cousinen 3. Adoptiv- und Pflegeverhältnisse (`2 PEDI`) zählen
 nicht. Die Regel gilt auch für Admins; ein Konto ohne zugeordnete Person sieht keine. Auf Wunsch begrenzt auf einen
 Verwandtschaftsgrad (Verwaltung → Module → Familiengesundheit).
+
+## Katalog und Kategorien
+
+Jede Erkrankung hat eine Kategorie und auf Wunsch einen ICD-10-Code – am Namen, nicht an jedem Eintrag, damit sie
+überall gleich bleibt. Kategorien: Herz und Kreislauf, Krebs, Diabetes und Stoffwechsel, Autoimmun, Nervensystem und
+Demenz, Psychische Gesundheit, Lunge, Niere, Erbliche Syndrome, Sonstiges. Eine Erkrankung, die nicht im Katalog
+steht, zählt als *Sonstiges*.
+
+Der Katalog beginnt mit rund 40 häufigen Erkrankungen in der Sprache der Website (Deutsch oder Englisch) und wird in den
+Einstellungen des Moduls gepflegt. Dort stehen auch Namen, die in einem Stammbaum vorkommen, aber im Katalog fehlen.
+JSON `Catalog/{baum}` liefert Apps die Kategorien und den Katalog als Vorschläge beim Eintragen. Er enthält nur Namen,
+nie, wer betroffen ist.
 
 ## Installation
 
