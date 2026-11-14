@@ -149,6 +149,57 @@ class ModulTest(unittest.TestCase):
         self.assertEqual(403, U.sitzung().json_post("Illness", "testbaum", {"xref": "I3", "illness": "X"}).status)
         self.assertNotIn("Markerverboten", umgebung.sql("SELECT group_concat(i_gedcom) FROM wt_individuals")[0][0])
 
+    def test_anamnese(self):
+        paul = U.sitzung("mitglied")
+        # Eigene Anamnese: Mutter (1. Grad, "Mutter"), Nichte (2.); der Vater der Partnerin ist mit Paul nicht verwandt
+        seite = paul.get("History", "testbaum").text
+        self.assertIn("Familienanamnese von", seite)
+        self.assertIn("Markermutter", seite)
+        self.assertIn("Markernichte", seite)
+        self.assertNotIn("Markerpartnervater", seite)
+        self.assertIn("Mutter", seite)
+        # Maria *2.4.1905, Diagnose ABT 1960: webtrees rechnet 54 - nicht frueh
+        self.assertRegex(seite, r"<td>\s*54\s*</td>")
+        self.assertNotIn("früh aufgetreten</span>", seite)
+        # Auswahl: Paul und sein Kind unter 18, nicht das erwachsene, nicht das Adoptivkind
+        self.assertIn("xref=I6", seite)
+        self.assertNotIn("xref=I7", seite)
+        self.assertNotIn("xref=I13", seite)
+
+        # Anamnese des Kindes: Grossvater muetterlicherseits, Diagnose mit 35 -> frueh; Grossmutter 2. Grad
+        kind = paul.get("History", "testbaum", xref="I6").text
+        self.assertIn("Markerpartnervater", kind)
+        self.assertIn("früh aufgetreten</span>", kind)
+        self.assertIn("Markermutter", kind)
+        for marker in ("Markerschwager", "Markerfremd", "Markeradoptiert"):
+            self.assertNotIn(marker, kind)
+
+        # Filter nach Kategorie: alle Marker sind "Sonstiges"
+        self.assertIn("Markermutter", paul.get("History", "testbaum", xref="I6", category="other").text)
+        self.assertNotIn("Markermutter", paul.get("History", "testbaum", xref="I6", category="cancer").text)
+
+    def test_anamnese_nur_eigene_linie(self):
+        # Fremde Person, erwachsenes Kind, Mutter: keine Anamnese - und kein Marker in der Antwort
+        paul = U.sitzung("mitglied")
+        for xref in ("I12", "I7", "I2", "I999"):
+            a = paul.get("History", "testbaum", xref=xref)
+            self.assertEqual(404, a.status, xref)
+            for marker in MARKER:
+                self.assertNotIn(marker, a.text)
+        self.assertNotEqual(200, U.sitzung().get("History", "testbaum").status)
+        self.assertIn("keiner Person", U.sitzung("admin").get("History", "testbaum").text)
+
+    def test_frueh_einstellbar(self):
+        admin = U.sitzung("admin")
+        try:
+            admin.formular("Admin", {"max_degree": "0", "early_age": "60"})
+            self.assertIn('value="60"', admin.get("Admin").text)
+            self.assertIn("früh aufgetreten</span>", U.sitzung("mitglied").get("History", "testbaum").text)
+            admin.formular("Admin", {"max_degree": "0", "early_age": "0"})
+            self.assertNotIn("früh aufgetreten</span>", U.sitzung("mitglied").get("History", "testbaum", xref="I6").text)
+        finally:
+            admin.formular("Admin", {"max_degree": "0", "early_age": "50"})
+
     def test_ohne_person_ein_hinweis(self):
         self.assertIn("keiner Person", U.sitzung("admin").get("List", "testbaum").text)
 

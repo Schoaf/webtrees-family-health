@@ -1,0 +1,115 @@
+<?php
+
+declare(strict_types=1);
+
+use Fisharebest\Webtrees\Date;
+use Fisharebest\Webtrees\I18N;
+use Fisharebest\Webtrees\Individual;
+use Fisharebest\Webtrees\Registry;
+use Fisharebest\Webtrees\Services\RelationshipService;
+use Fisharebest\Webtrees\Tree;
+use Fisharebest\Webtrees\View;
+
+/**
+ * @var string                                                                 $title
+ * @var Tree                                                                   $tree
+ * @var bool                                                                   $is_linked
+ * @var Individual|null                                                        $subject
+ * @var array<string,Individual>                                               $subjects
+ * @var array<string,list<array{individual:Individual,illness:string,icd:string,date:string,degree:int,age:int|null,is_early:bool}>> $groups
+ * @var list<string>                                                           $used
+ * @var string                                                                 $category
+ * @var array<string,string>                                                   $categories
+ * @var int                                                                    $early_age
+ * @var Closure(string,string):string                                          $url
+ * @var RelationshipService                                                    $relationship
+ * @var string                                                                 $list_url
+ */
+
+?>
+
+<h2 class="wt-page-title">
+    <?= $subject === null ? e($title) : I18N::translate('Family health history of %s', $subject->fullName()) ?>
+</h2>
+
+<?php if (!$is_linked || $subject === null) : ?>
+    <div class="alert alert-info"><?= I18N::translate('Your account is not linked to an individual in this family tree, so there are no relatives to show. An administrator can link it.') ?></div>
+<?php else : ?>
+    <p class="d-none d-print-block"><?= I18N::translate('As of %s', Registry::timestampFactory()->now()->isoFormat('LL')) ?></p>
+
+    <div class="d-print-none mb-3">
+        <?php if (count($subjects) > 1) : ?>
+            <nav class="nav nav-pills mb-2" aria-label="<?= I18N::translate('Individual') ?>">
+                <?php foreach ($subjects as $xref => $individual) : ?>
+                    <a class="nav-link <?= $xref === $subject->xref() ? 'active' : '' ?>" href="<?= e($url($xref, $category)) ?>"><?= $individual->fullName() ?></a>
+                <?php endforeach ?>
+            </nav>
+        <?php endif ?>
+
+        <?php if ($used !== []) : ?>
+            <nav class="nav nav-pills nav-sm mb-2" aria-label="<?= I18N::translate('Category') ?>">
+                <a class="nav-link <?= $category === '' ? 'active' : '' ?>" href="<?= e($url($subject->xref(), '')) ?>"><?= I18N::translate('All categories') ?></a>
+                <?php foreach ($categories as $id => $label) : ?>
+                    <?php if (in_array($id, $used, true)) : ?>
+                        <a class="nav-link <?= $category === $id ? 'active' : '' ?>" href="<?= e($url($subject->xref(), $id)) ?>"><?= e($label) ?></a>
+                    <?php endif ?>
+                <?php endforeach ?>
+            </nav>
+        <?php endif ?>
+
+        <button type="button" class="btn btn-secondary" id="family-health-print"><?= I18N::translate('Print') ?></button>
+        <a class="btn btn-link" href="<?= e($list_url) ?>"><?= I18N::translate('Family health') ?></a>
+    </div>
+
+    <?php if ($groups === []) : ?>
+        <p><?= I18N::translate('No illnesses are recorded for the blood relatives of this individual.') ?></p>
+    <?php endif ?>
+
+    <?php foreach ($groups as $id => $entries) : ?>
+        <h3 class="h5 mt-4"><?= e($categories[$id]) ?></h3>
+        <table class="table table-sm wt-family-health-history">
+            <thead>
+                <tr>
+                    <th><?= I18N::translate('Individual') ?></th>
+                    <th><?= I18N::translate('Relationship') ?></th>
+                    <th><?= I18N::translate('Degree') ?></th>
+                    <th><?= I18N::translate('Illness') ?></th>
+                    <th><?= I18N::translate('Date of diagnosis') ?></th>
+                    <th><?= I18N::translate('Age at diagnosis') ?></th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($entries as $entry) : ?>
+                    <tr>
+                        <td><a href="<?= e($entry['individual']->url()) ?>"><?= $entry['individual']->fullName() ?></a></td>
+                        <td><?= $relationship->getCloseRelationshipName($subject, $entry['individual']) ?></td>
+                        <td><?= I18N::number($entry['degree']) ?></td>
+                        <td>
+                            <?= e($entry['illness']) ?>
+                            <?php if ($entry['icd'] !== '') : ?>
+                                <span class="text-muted">(<?= e($entry['icd']) ?>)</span>
+                            <?php endif ?>
+                        </td>
+                        <td><?= $entry['date'] === '' ? '' : (new Date($entry['date']))->display() ?></td>
+                        <td>
+                            <?= $entry['age'] === null ? '' : I18N::number($entry['age']) ?>
+                            <?php if ($entry['is_early']) : ?>
+                                <span class="badge text-bg-warning wt-family-health-early"><?= I18N::translate('early onset') ?></span>
+                            <?php endif ?>
+                        </td>
+                    </tr>
+                <?php endforeach ?>
+            </tbody>
+        </table>
+    <?php endforeach ?>
+
+    <?php if ($early_age > 0) : ?>
+        <p class="form-text"><?= I18N::translate('Early onset: diagnosed before the age of %s.', I18N::number($early_age)) ?></p>
+    <?php endif ?>
+<?php endif ?>
+
+<?php View::push('javascript') ?>
+<script>
+  document.getElementById('family-health-print')?.addEventListener('click', () => window.print());
+</script>
+<?php View::endpush() ?>

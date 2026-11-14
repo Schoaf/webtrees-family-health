@@ -5,8 +5,8 @@
 Record illnesses in your family tree and sum them up for the doctor: *"Any cases of this in your family?"*
 
 > Work in progress – so far the visibility rule, a plain list of the illnesses you may see (page "Family health",
-> menu *Lists*), the catalog and recording an illness. The family health history by person and category is still to
-> come.
+> menu *Lists*), the catalog, recording an illness and the family health history for the doctor. The app view is still
+> to come.
 > The plan is in [webtrees-mobile#54](https://github.com/Schoaf/webtrees-mobile/issues/54).
 
 ## How illnesses are stored
@@ -50,6 +50,15 @@ Editors find a form on the page "Family health": individual, illness (suggested 
 and – for a name not in the catalog yet – its category, which adds it there. The module writes the fact itself,
 `2 TYPE` in the site's language (*Erkrankung* or *Illness*) and always `2 RESN confidential`; it goes through pending
 changes like any edit. The editor, too, sees it afterwards only if they are a blood relative.
+
+## Family health history
+
+The button *Family health history* on the page opens what a doctor asks for: for your own individual – or one of your
+children under 18 – the illnesses of their blood relatives, grouped by category. Each with the relationship
+(*mother*, *grandfather*), the degree, the ICD-10 code from the catalog, the date of diagnosis and the age at diagnosis.
+An illness diagnosed before a set age (default 50, changeable in the settings, 0 = off) is marked *early onset*.
+A filter shows one category only; *Print* leaves out the controls and adds the date. The individual's own illnesses
+are not part of it, and it only ever shows what the visibility rule lets you see.
 
 ## JSON for apps
 

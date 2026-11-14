@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace FamilyHealth;
 
+use Fisharebest\Webtrees\Age;
 use Fisharebest\Webtrees\Contracts\UserInterface;
 use Fisharebest\Webtrees\Date;
 use Fisharebest\Webtrees\DB;
@@ -47,12 +48,12 @@ final class Illnesses
     private const string TYPE_DEFAULT    = 'Illness';
 
     /**
-     * Individuals whose illnesses $user may see, with the degree from the nearest of the user's own individual and
-     * the user's minor children.
+     * Whose family history $user may look at: their own individual and their children under 18 - the people the
+     * visibility rule starts from. Empty without a linked individual.
      *
-     * @return array<string,int>
+     * @return list<string>
      */
-    public static function visibleIndividuals(Tree $tree, UserInterface $user, int $max_degree): array
+    public static function subjects(Tree $tree, UserInterface $user, Kinship|null $kinship = null): array
     {
         $own = $tree->getUserPreference($user, UserInterface::PREF_TREE_ACCOUNT_XREF);
 
@@ -60,10 +61,23 @@ final class Illnesses
             return [];
         }
 
-        $kinship = new Kinship($tree);
-        $visible = [];
+        $kinship ??= new Kinship($tree);
 
-        foreach ([$own, ...$kinship->minorChildren($own)] as $viewer) {
+        return [$own, ...$kinship->minorChildren($own)];
+    }
+
+    /**
+     * Individuals whose illnesses $user may see, with the degree from the nearest of the user's own individual and
+     * the user's minor children.
+     *
+     * @return array<string,int>
+     */
+    public static function visibleIndividuals(Tree $tree, UserInterface $user, int $max_degree, Kinship|null $kinship = null): array
+    {
+        $kinship ??= new Kinship($tree);
+        $visible   = [];
+
+        foreach (self::subjects($tree, $user, $kinship) as $viewer) {
             foreach ($kinship->bloodRelatives($viewer) as $xref => $degree) {
                 if ($max_degree === 0 || $degree <= $max_degree) {
                     $visible[$xref] = min($visible[$xref] ?? $degree, $degree);
@@ -75,14 +89,65 @@ final class Illnesses
     }
 
     /**
-     * @return list<array{individual:Individual,illness:string,category:string,date:string,degree:int}>
+     * @return list<array{individual:Individual,illness:string,category:string,icd:string,date:string,degree:int}>
      */
     public static function visibleTo(Tree $tree, UserInterface $user, int $max_degree, Catalog $catalog): array
     {
-        $visible   = self::visibleIndividuals($tree, $user, $max_degree);
+        return self::read($tree, self::visibleIndividuals($tree, $user, $max_degree), $catalog);
+    }
+
+    /**
+     * The family history of $subject: illnesses of their blood relatives (not their own), with the degree to
+     * $subject. Only for a subject from subjects() and only what $user may see - null for anyone else.
+     *
+     * @return list<array{individual:Individual,illness:string,category:string,icd:string,date:string,degree:int}>|null
+     */
+    public static function historyOf(Tree $tree, UserInterface $user, string $subject, int $max_degree, Catalog $catalog): array|null
+    {
+        $kinship = new Kinship($tree);
+
+        if (!in_array($subject, self::subjects($tree, $user, $kinship), true)) {
+            return null;
+        }
+
+        $visible = self::visibleIndividuals($tree, $user, $max_degree, $kinship);
+        $degrees = [];
+
+        foreach ($kinship->bloodRelatives($subject) as $xref => $degree) {
+            if ($degree > 0 && isset($visible[$xref]) && ($max_degree === 0 || $degree <= $max_degree)) {
+                $degrees[$xref] = $degree;
+            }
+        }
+
+        return self::read($tree, $degrees, $catalog);
+    }
+
+    /**
+     * Age in whole years at the date of diagnosis - null when either date is missing or the age makes no sense.
+     */
+    public static function ageAtDiagnosis(Individual $individual, string $date): int|null
+    {
+        if ($date === '') {
+            return null;
+        }
+
+        $age = (new Age($individual->getBirthDate(), new Date($date)))->ageYears();
+
+        return $age >= 0 && $age <= 120 ? $age : null;
+    }
+
+    /**
+     * The illnesses in the accepted records of these individuals.
+     *
+     * @param array<string,int> $degrees individual => degree
+     *
+     * @return list<array{individual:Individual,illness:string,category:string,icd:string,date:string,degree:int}>
+     */
+    private static function read(Tree $tree, array $degrees, Catalog $catalog): array
+    {
         $illnesses = [];
 
-        foreach (array_chunk(array_keys($visible), self::CHUNK) as $chunk) {
+        foreach (array_chunk(array_keys($degrees), self::CHUNK) as $chunk) {
             $rows = DB::table('individuals')->where('i_file', '=', $tree->id())->whereIn('i_id', $chunk)->get(['i_id', 'i_gedcom']);
 
             foreach ($rows as $row) {
@@ -99,12 +164,14 @@ final class Illnesses
                 }
 
                 foreach ($found as [$illness, $date]) {
+                    $entry       = $catalog->find($illness);
                     $illnesses[] = [
                         'individual' => $individual,
                         'illness'    => $illness,
-                        'category'   => $catalog->find($illness)['category'] ?? 'other',
+                        'category'   => $entry['category'] ?? 'other',
+                        'icd'        => $entry['icd'] ?? '',
                         'date'       => $date,
-                        'degree'     => $visible[$row->i_id],
+                        'degree'     => $degrees[$row->i_id],
                     ];
                 }
             }

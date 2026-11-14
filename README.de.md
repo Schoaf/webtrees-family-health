@@ -5,8 +5,8 @@
 Erkrankungen im Stammbaum erfassen und für den Arzt zusammenfassen: *„Gab es das in Ihrer Familie schon?“*
 
 > In Arbeit – bisher die Sichtbarkeitsregel, eine einfache Liste der Erkrankungen, die man sehen darf (Seite
-> „Familiengesundheit“, Menü *Listen*), der Katalog und das Eintragen. Die Familienanamnese nach Person und Kategorie
-> folgt.
+> „Familiengesundheit“, Menü *Listen*), der Katalog, das Eintragen und die Familienanamnese für den Arzt. Die Ansicht in
+> der App folgt.
 > Der Plan steht in [webtrees-mobile#54](https://github.com/Schoaf/webtrees-mobile/issues/54).
 
 ## Wie Erkrankungen gespeichert werden
@@ -53,6 +53,16 @@ Datum der Diagnose und – bei einem Namen, der noch nicht im Katalog steht – 
 wird. Das Modul schreibt den Fakt selbst, `2 TYPE` in der Sprache der Website (*Erkrankung* bzw. *Illness*) und immer
 `2 RESN confidential`; er geht wie jede Änderung durch die ausstehenden Änderungen. Auch der Bearbeiter sieht ihn danach
 nur, wenn er blutsverwandt ist.
+
+## Familienanamnese
+
+Die Schaltfläche *Familienanamnese* auf der Seite öffnet, was ein Arzt fragt: für die eigene Person – oder eines der
+eigenen Kinder unter 18 – die Erkrankungen ihrer Blutsverwandten, nach Kategorie gruppiert. Jeweils mit Beziehung
+(*Mutter*, *Großvater*), Grad, ICD-10-Code aus dem Katalog, Datum der Diagnose und Alter bei Diagnose. Eine Erkrankung,
+die vor einem festgelegten Alter diagnostiziert wurde (Standard 50, in den Einstellungen änderbar, 0 = aus), ist als
+*früh aufgetreten* markiert. Ein Filter zeigt nur eine Kategorie; *Drucken* lässt die Bedienelemente weg und ergänzt
+das Datum. Die eigenen Erkrankungen der Person gehören nicht dazu, und es erscheint nur, was die Sichtbarkeitsregel
+erlaubt.
 
 ## JSON für Apps
 

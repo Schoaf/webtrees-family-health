@@ -10,6 +10,9 @@
   `Illnesses`.
 - Record an illness: form on the page for editors and JSON `Illness` (POST); the module sets `2 TYPE` and
   `2 RESN confidential` itself, the change goes through pending changes, a new name joins the catalog with its category.
+- Family health history for the doctor: for your own individual or a child under 18, the relatives' illnesses by
+  category with relationship, degree, ICD-10 code and age at diagnosis; early onset marked (age set in the settings);
+  filter by category; print view.
 
 ## 0.1.0
 

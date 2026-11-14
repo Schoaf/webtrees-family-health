@@ -7,6 +7,7 @@ namespace FamilyHealth;
 use Fisharebest\Webtrees\Auth;
 use Fisharebest\Webtrees\Contracts\UserInterface;
 use Fisharebest\Webtrees\FlashMessages;
+use Fisharebest\Webtrees\Http\Exceptions\HttpNotFoundException;
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Module\AbstractModule;
 use Fisharebest\Webtrees\Module\ModuleConfigInterface;
@@ -16,12 +17,14 @@ use Fisharebest\Webtrees\Module\ModuleCustomTrait;
 use Fisharebest\Webtrees\Module\ModuleListInterface;
 use Fisharebest\Webtrees\Module\ModuleListTrait;
 use Fisharebest\Webtrees\Registry;
+use Fisharebest\Webtrees\Services\RelationshipService;
 use Fisharebest\Webtrees\Tree;
 use Fisharebest\Webtrees\Validator;
 use Fisharebest\Webtrees\View;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 
+use function array_keys;
 use function array_map;
 use function explode;
 use function in_array;
@@ -36,9 +39,10 @@ use function response;
 use function route;
 use function str_starts_with;
 use function strip_tags;
+use function usort;
 
 /**
- * The module: metadata, the page "Family health" (menu Lists) and the settings.
+ * The module: metadata, the page "Family health" (menu Lists), the family history for the doctor and the settings.
  *
  * Illnesses are plain GEDCOM facts in the tree (1 FACT <illness> / 2 TYPE Erkrankung / 2 RESN confidential). Who
  * sees which is decided by the module itself (blood relatives of your own individual and of your children under 18)
@@ -61,6 +65,11 @@ class FamilyHealthModule extends AbstractModule implements ModuleCustomInterface
     // Module setting: up to which degree of relationship illnesses are visible. 0 = no limit.
     private const string MAX_DEGREE_SETTING = 'max_degree';
     private const int    MAX_DEGREE_LIMIT   = 10;
+
+    // Module setting: an illness diagnosed below this age is marked as early onset in the family history. 0 = off.
+    private const string EARLY_AGE_SETTING = 'early_age';
+    private const string EARLY_AGE_DEFAULT = '50';
+    private const int    EARLY_AGE_LIMIT   = 99;
 
     // The page is for signed-in members; visitors don't see the menu item (changeable in the control panel).
     protected int $access_level = Auth::PRIV_USER;
@@ -152,7 +161,89 @@ class FamilyHealthModule extends AbstractModule implements ModuleCustomInterface
             'catalog'    => $this->catalog()->entries(),
             'add_url'    => route('module', ['module' => $this->name(), 'action' => 'Add', 'tree' => $tree->name()]),
             'categories' => Catalog::categoryNames(),
+            'history_url' => $this->historyUrl($tree, ''),
         ]);
+    }
+
+    /**
+     * The family history for the doctor: for your own individual or one of your children under 18, the illnesses of
+     * their blood relatives, grouped by category. ?xref= chooses the individual, ?category= limits to one category.
+     */
+    public function getHistoryAction(ServerRequestInterface $request): ResponseInterface
+    {
+        $tree     = Validator::attributes($request)->tree();
+        $user     = Validator::attributes($request)->user();
+        $subjects = Illnesses::subjects($tree, $user);
+        $xref     = Validator::queryParams($request)->string('xref', $subjects[0] ?? '');
+        $category = Validator::queryParams($request)->string('category', '');
+
+        Auth::checkComponentAccess($this, ModuleListInterface::class, $tree, $user);
+
+        $history = $subjects === [] ? [] : Illnesses::historyOf($tree, $user, $xref, $this->maxDegree(), $this->catalog());
+
+        if ($history === null) {
+            throw new HttpNotFoundException(I18N::translate('Choose an individual.'));
+        }
+
+        $early_age = $this->earlyAge();
+        $groups    = [];
+
+        foreach ($history as $entry) {
+            $entry['age']      = Illnesses::ageAtDiagnosis($entry['individual'], $entry['date']);
+            $entry['is_early'] = $early_age > 0 && $entry['age'] !== null && $entry['age'] < $early_age;
+            $groups[$entry['category']][] = $entry;
+        }
+
+        // Categories in their fixed order, inside by degree and then name.
+        $sorted = [];
+
+        foreach (Catalog::CATEGORIES as $id) {
+            if (isset($groups[$id]) && ($category === '' || $category === $id)) {
+                usort($groups[$id], static fn (array $x, array $y): int => $x['degree'] <=> $y['degree'] ?: I18N::comparator()($x['individual']->sortName(), $y['individual']->sortName()));
+                $sorted[$id] = $groups[$id];
+            }
+        }
+
+        $individuals = [];
+
+        foreach ($subjects as $subject) {
+            $individual = Registry::individualFactory()->make($subject, $tree);
+
+            if ($individual !== null) {
+                $individuals[$subject] = $individual;
+            }
+        }
+
+        return $this->viewResponse($this->name() . '::history', [
+            'title'        => I18N::translate('Family health history'),
+            'tree'         => $tree,
+            'is_linked'    => $subjects !== [],
+            'subject'      => $individuals[$xref] ?? null,
+            'subjects'     => $individuals,
+            'groups'       => $sorted,
+            'used'         => array_keys($groups),
+            'category'     => $category,
+            'categories'   => Catalog::categoryNames(),
+            'early_age'    => $early_age,
+            'url'          => fn (string $xref, string $category): string => $this->historyUrl($tree, $xref, $category),
+            'relationship' => Registry::container()->get(RelationshipService::class),
+            'list_url'     => $this->listUrl($tree),
+        ]);
+    }
+
+    private function historyUrl(Tree $tree, string $xref, string $category = ''): string
+    {
+        $parameters = ['module' => $this->name(), 'action' => 'History', 'tree' => $tree->name()];
+
+        if ($xref !== '') {
+            $parameters['xref'] = $xref;
+        }
+
+        if ($category !== '') {
+            $parameters['category'] = $category;
+        }
+
+        return route('module', $parameters);
     }
 
     /**
@@ -265,6 +356,8 @@ class FamilyHealthModule extends AbstractModule implements ModuleCustomInterface
             'title'      => $this->title(),
             'max_degree' => $this->maxDegree(),
             'limit'      => self::MAX_DEGREE_LIMIT,
+            'early_age'  => $this->earlyAge(),
+            'early_limit' => self::EARLY_AGE_LIMIT,
             'categories' => Catalog::categoryNames(),
             'catalog'    => $this->catalog()->entries(),
             'missing'    => $this->catalog()->namesNotInCatalog(),
@@ -281,6 +374,12 @@ class FamilyHealthModule extends AbstractModule implements ModuleCustomInterface
         }
 
         $this->setPreference(self::MAX_DEGREE_SETTING, (string) $max_degree);
+
+        $early_age = Validator::parsedBody($request)->integer('early_age', (int) self::EARLY_AGE_DEFAULT);
+
+        if (in_array($early_age, range(0, self::EARLY_AGE_LIMIT), true)) {
+            $this->setPreference(self::EARLY_AGE_SETTING, (string) $early_age);
+        }
 
         // The catalog as rows of the form; a row without a category, or marked for deletion, is left out. Only when
         // the form had the catalog at all - a post without it keeps the catalog as it is.
@@ -312,5 +411,13 @@ class FamilyHealthModule extends AbstractModule implements ModuleCustomInterface
     public function maxDegree(): int
     {
         return (int) $this->getPreference(self::MAX_DEGREE_SETTING, '0');
+    }
+
+    /**
+     * Below which age at diagnosis an illness counts as early onset; 0 = not marked.
+     */
+    public function earlyAge(): int
+    {
+        return (int) $this->getPreference(self::EARLY_AGE_SETTING, self::EARLY_AGE_DEFAULT);
     }
 }

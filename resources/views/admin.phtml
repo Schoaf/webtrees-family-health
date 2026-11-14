@@ -10,6 +10,8 @@ use Fisharebest\Webtrees\I18N;
  * @var string                                          $title
  * @var int                                             $max_degree
  * @var int                                             $limit
+ * @var int                                             $early_age
+ * @var int                                             $early_limit
  * @var array<string,string>                            $categories
  * @var array<string,array{category:string,icd:string}> $catalog
  * @var list<string>                                    $missing
@@ -55,6 +57,14 @@ $i = 0;
                 <?php endfor ?>
             </select>
             <div class="form-text"><?= I18N::translate('Illnesses are shown for blood relatives of your own individual and of your children under 18 – optionally only up to this degree.') ?></div>
+        </div>
+    </div>
+
+    <div class="row mb-3">
+        <label class="col-sm-3 col-form-label" for="early_age"><?= I18N::translate('Early onset below age') ?></label>
+        <div class="col-sm-9">
+            <input class="form-control" type="number" id="early_age" name="early_age" min="0" max="<?= $early_limit ?>" value="<?= $early_age ?>">
+            <div class="form-text"><?= I18N::translate('In the family history, an illness diagnosed before this age is marked as early onset. 0 = do not mark.') ?></div>
         </div>
     </div>
 
