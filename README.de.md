@@ -4,7 +4,8 @@
 
 Erkrankungen im Stammbaum erfassen und für den Arzt zusammenfassen: *„Gab es das in Ihrer Familie schon?“*
 
-> In Arbeit – Version 0.1.0 ist nur der Rahmen: die Seite „Familiengesundheit“ (Menü *Listen*) und die Einstellungen.
+> In Arbeit – bisher die Sichtbarkeitsregel und eine einfache Liste der Erkrankungen, die man sehen darf (Seite
+> „Familiengesundheit“, Menü *Listen*, und JSON `Illnesses/{baum}` für Apps). Katalog, Kategorien und Eingabe folgen.
 > Der Plan steht in [webtrees-mobile#54](https://github.com/Schoaf/webtrees-mobile/issues/54).
 
 ## Wie Erkrankungen gespeichert werden
@@ -27,7 +28,10 @@ Das Modul zeigt eine Erkrankung nur
 - Blutsverwandten der Person, die dem eigenen Konto zugeordnet ist, und
 - Blutsverwandten der eigenen Kinder unter 18 – so sieht ein Elternteil auch die Linie des anderen.
 
-Auf Wunsch begrenzt auf einen Verwandtschaftsgrad (Verwaltung → Module → Familiengesundheit).
+Der Grad ist der genetische, nach dem Ärzte fragen: Eltern, Kinder und Geschwister 1., Großeltern, Tanten, Onkel,
+Nichten, Neffen und Halbgeschwister 2., Cousins und Cousinen 3. Adoptiv- und Pflegeverhältnisse (`2 PEDI`) zählen
+nicht. Die Regel gilt auch für Admins; ein Konto ohne zugeordnete Person sieht keine. Auf Wunsch begrenzt auf einen
+Verwandtschaftsgrad (Verwaltung → Module → Familiengesundheit).
 
 ## Installation
 

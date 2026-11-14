@@ -11,14 +11,13 @@
 2 DATE 1 MAR 1900
 1 DEAT
 2 DATE 5 MAY 1970
-2 CAUS Herzinfarkt
 1 FAMS @F1@
 0 @I2@ INDI
 1 NAME Maria /Gesund/
 1 SEX F
 1 BIRT
 2 DATE 2 APR 1905
-1 FACT Diabetes mellitus Typ 2
+1 FACT Markermutter
 2 TYPE Erkrankung
 2 DATE ABT 1960
 2 RESN confidential
@@ -29,12 +28,109 @@
 1 NAME Paul /Gesund/
 1 SEX M
 1 BIRT
-2 DATE 3 JUN 1930
+2 DATE 3 JUN 1950
+1 FAMC @F1@
+1 FAMS @F2@
+0 @I4@ INDI
+1 NAME Anna /Gesund/
+1 SEX F
+1 BIRT
+2 DATE 4 JUL 1952
+1 FAMC @F1@
+1 FAMS @F3@
+0 @I5@ INDI
+1 NAME Eva /Partner/
+1 SEX F
+1 BIRT
+2 DATE 5 AUG 1975
+1 FAMC @F4@
+1 FAMS @F2@
+0 @I6@ INDI
+1 NAME Kind /Gesund/
+1 SEX M
+1 BIRT
+2 DATE 6 SEP 2015
+1 FAMC @F2@
+0 @I7@ INDI
+1 NAME Max /Gesund/
+1 SEX M
+1 BIRT
+2 DATE 7 OCT 1980
+1 FAMC @F2@
+0 @I8@ INDI
+1 NAME Otto /Schwager/
+1 SEX M
+1 BIRT
+2 DATE 8 NOV 1950
+1 FACT Markerschwager
+2 TYPE Erkrankung
+2 RESN confidential
+1 FAMS @F3@
+0 @I9@ INDI
+1 NAME Nichte /Schwager/
+1 SEX F
+1 BIRT
+2 DATE 9 DEC 1978
+1 FACT Markernichte
+2 TYPE Erkrankung
+2 RESN confidential
+1 FAMC @F3@
+0 @I10@ INDI
+1 NAME Ernst /Partner/
+1 SEX M
+1 BIRT
+2 DATE 10 JAN 1945
+1 FACT Markerpartnervater
+2 TYPE Erkrankung
+2 RESN confidential
+1 DEAT
+2 DATE 2010
+1 FAMS @F4@
+0 @I11@ INDI
+1 NAME Erna /Partner/
+1 SEX F
+1 BIRT
+2 DATE 11 FEB 1948
+1 DEAT
+2 DATE 2012
+1 FAMS @F4@
+0 @I12@ INDI
+1 NAME Fritz /Fremd/
+1 SEX M
+1 BIRT
+2 DATE 12 MAR 1940
+1 FACT Markerfremd
+2 TYPE Erkrankung
+2 RESN confidential
 1 DEAT
 2 DATE 2000
-1 FAMC @F1@
+0 @I13@ INDI
+1 NAME Adoptiert /Gesund/
+1 SEX F
+1 BIRT
+2 DATE 13 APR 2016
+1 FACT Markeradoptiert
+2 TYPE Erkrankung
+2 RESN confidential
+1 FAMC @F2@
+2 PEDI adopted
 0 @F1@ FAM
 1 HUSB @I1@
 1 WIFE @I2@
 1 CHIL @I3@
+1 CHIL @I4@
+0 @F2@ FAM
+1 HUSB @I3@
+1 WIFE @I5@
+1 CHIL @I6@
+1 CHIL @I7@
+1 CHIL @I13@
+0 @F3@ FAM
+1 HUSB @I8@
+1 WIFE @I4@
+1 CHIL @I9@
+0 @F4@ FAM
+1 HUSB @I10@
+1 WIFE @I11@
+1 CHIL @I5@
 0 TRLR

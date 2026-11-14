@@ -142,6 +142,10 @@ class Umgebung:
             wt("user-setting", name, "language", "de")
             wt("user-setting", name, "verified_by_admin", "1")
             wt("user-tree-setting", name, "testbaum", "canedit", rolle)
+        # Wer wem zugeordnet ist (siehe testbaum.ged): mitglied = Paul, bearbeiter = Anna, verwalter = Fritz (fremd).
+        # admin bleibt ohne Person.
+        for name, xref in (("mitglied", "I3"), ("bearbeiter", "I4"), ("verwalter", "I12")):
+            wt("user-tree-setting", name, "testbaum", "gedcomid", xref)
         return self
 
     def _warten(self):

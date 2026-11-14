@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace FamilyHealth;
 
 use Fisharebest\Webtrees\Auth;
+use Fisharebest\Webtrees\Contracts\UserInterface;
 use Fisharebest\Webtrees\FlashMessages;
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Module\AbstractModule;
@@ -19,6 +20,7 @@ use Fisharebest\Webtrees\View;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 
+use function array_map;
 use function explode;
 use function in_array;
 use function is_array;
@@ -26,7 +28,9 @@ use function is_file;
 use function preg_match;
 use function range;
 use function redirect;
+use function response;
 use function str_starts_with;
+use function strip_tags;
 
 /**
  * The module: metadata, the page "Family health" (menu Lists) and the settings.
@@ -132,9 +136,32 @@ class FamilyHealthModule extends AbstractModule implements ModuleCustomInterface
         Auth::checkComponentAccess($this, ModuleListInterface::class, $tree, $user);
 
         return $this->viewResponse($this->name() . '::list', [
-            'title' => $this->title(),
-            'tree'  => $tree,
+            'title'     => $this->title(),
+            'tree'      => $tree,
+            'is_linked' => $tree->getUserPreference($user, UserInterface::PREF_TREE_ACCOUNT_XREF) !== '',
+            'illnesses' => Illnesses::visibleTo($tree, $user, $this->maxDegree()),
         ]);
+    }
+
+    /**
+     * JSON for apps: the illnesses the signed-in user may see (same rule as the page).
+     */
+    public function getIllnessesAction(ServerRequestInterface $request): ResponseInterface
+    {
+        $tree = Validator::attributes($request)->tree();
+        $user = Validator::attributes($request)->user();
+
+        Auth::checkComponentAccess($this, ModuleListInterface::class, $tree, $user);
+
+        $illnesses = array_map(static fn (array $entry): array => [
+            'xref'    => $entry['individual']->xref(),
+            'name'    => strip_tags($entry['individual']->fullName()),
+            'illness' => $entry['illness'],
+            'date'    => $entry['date'],
+            'degree'  => $entry['degree'],
+        ], Illnesses::visibleTo($tree, $user, $this->maxDegree()));
+
+        return response(['illnesses' => $illnesses]);
     }
 
     public function getAdminAction(ServerRequestInterface $request): ResponseInterface

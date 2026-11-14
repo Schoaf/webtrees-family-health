@@ -4,7 +4,8 @@
 
 Record illnesses in your family tree and sum them up for the doctor: *"Any cases of this in your family?"*
 
-> Work in progress – version 0.1.0 is only the frame: the page "Family health" (menu *Lists*) and the settings.
+> Work in progress – so far the visibility rule and a plain list of the illnesses you may see (page "Family health",
+> menu *Lists*, and JSON `Illnesses/{tree}` for apps). Catalog, categories and entry form are still to come.
 > The plan is in [webtrees-mobile#54](https://github.com/Schoaf/webtrees-mobile/issues/54).
 
 ## How illnesses are stored
@@ -27,7 +28,10 @@ The module shows an illness only to
 - blood relatives of the individual linked to your account, and
 - blood relatives of your own children under 18 – so a parent sees the other parent's line.
 
-Optionally limited to a degree of relationship (control panel → Modules → Family health).
+The degree is the genetic one a doctor asks about: parents, children and siblings 1st, grandparents, aunts, uncles,
+nieces, nephews and half siblings 2nd, first cousins 3rd. Adoptive and foster links (`2 PEDI`) don't count. The rule
+holds for admins too; an account without a linked individual sees none. Optionally limited to a degree of
+relationship (control panel → Modules → Family health).
 
 ## Installation
 

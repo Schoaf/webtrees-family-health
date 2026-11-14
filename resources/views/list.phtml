@@ -2,16 +2,45 @@
 
 declare(strict_types=1);
 
+use Fisharebest\Webtrees\Date;
 use Fisharebest\Webtrees\I18N;
+use Fisharebest\Webtrees\Individual;
 use Fisharebest\Webtrees\Tree;
 
 /**
- * @var string $title
- * @var Tree   $tree
+ * @var string                                                                       $title
+ * @var Tree                                                                         $tree
+ * @var bool                                                                         $is_linked
+ * @var list<array{individual:Individual,illness:string,date:string,degree:int}>     $illnesses
  */
 
 ?>
 
 <h2 class="wt-page-title"><?= e($title) ?></h2>
 
-<p><?= I18N::translate('The family health history will appear here: illnesses among blood relatives, by degree of relationship and category.') ?></p>
+<?php if (!$is_linked) : ?>
+    <div class="alert alert-info"><?= I18N::translate('Your account is not linked to an individual in this family tree, so there are no relatives to show. An administrator can link it.') ?></div>
+<?php elseif ($illnesses === []) : ?>
+    <p><?= I18N::translate('No illnesses are recorded for your blood relatives.') ?></p>
+<?php else : ?>
+    <table class="table table-sm wt-family-health">
+        <thead>
+            <tr>
+                <th><?= I18N::translate('Individual') ?></th>
+                <th><?= I18N::translate('Degree') ?></th>
+                <th><?= I18N::translate('Illness') ?></th>
+                <th><?= I18N::translate('Date') ?></th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php foreach ($illnesses as $entry) : ?>
+                <tr>
+                    <td><a href="<?= e($entry['individual']->url()) ?>"><?= $entry['individual']->fullName() ?></a></td>
+                    <td><?= I18N::number($entry['degree']) ?></td>
+                    <td><?= e($entry['illness']) ?></td>
+                    <td><?= $entry['date'] === '' ? '' : (new Date($entry['date']))->display() ?></td>
+                </tr>
+            <?php endforeach ?>
+        </tbody>
+    </table>
+<?php endif ?>
