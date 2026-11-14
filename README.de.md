@@ -4,8 +4,9 @@
 
 Erkrankungen im Stammbaum erfassen und für den Arzt zusammenfassen: *„Gab es das in Ihrer Familie schon?“*
 
-> In Arbeit – bisher die Sichtbarkeitsregel und eine einfache Liste der Erkrankungen, die man sehen darf (Seite
-> „Familiengesundheit“, Menü *Listen*, und JSON `Illnesses/{baum}` für Apps) und der Katalog. Die Eingabe folgt.
+> In Arbeit – bisher die Sichtbarkeitsregel, eine einfache Liste der Erkrankungen, die man sehen darf (Seite
+> „Familiengesundheit“, Menü *Listen*), der Katalog und das Eintragen. Die Familienanamnese nach Person und Kategorie
+> folgt.
 > Der Plan steht in [webtrees-mobile#54](https://github.com/Schoaf/webtrees-mobile/issues/54).
 
 ## Wie Erkrankungen gespeichert werden
@@ -44,6 +45,19 @@ Der Katalog beginnt mit rund 40 häufigen Erkrankungen in der Sprache der Websit
 Einstellungen des Moduls gepflegt. Dort stehen auch Namen, die in einem Stammbaum vorkommen, aber im Katalog fehlen.
 JSON `Catalog/{baum}` liefert Apps die Kategorien und den Katalog als Vorschläge beim Eintragen. Er enthält nur Namen,
 nie, wer betroffen ist.
+
+## Erkrankung eintragen
+
+Bearbeiter finden auf der Seite „Familiengesundheit“ ein Formular: Person, Erkrankung (Vorschläge aus dem Katalog),
+Datum der Diagnose und – bei einem Namen, der noch nicht im Katalog steht – seine Kategorie, mit der er dort aufgenommen
+wird. Das Modul schreibt den Fakt selbst, `2 TYPE` in der Sprache der Website (*Erkrankung* bzw. *Illness*) und immer
+`2 RESN confidential`; er geht wie jede Änderung durch die ausstehenden Änderungen. Auch der Bearbeiter sieht ihn danach
+nur, wenn er blutsverwandt ist.
+
+## JSON für Apps
+
+Dieselbe Sitzung und derselbe CSRF-Token wie webtrees (und api4webtrees), Route `/module/_family-health_/<Action>/{baum}`
+– die Tabelle steht in der [englischen README](README.md#json-for-apps).
 
 ## Installation
 

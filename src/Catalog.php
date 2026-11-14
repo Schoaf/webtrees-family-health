@@ -119,6 +119,14 @@ final class Catalog
     }
 
     /**
+     * Adds one name with its category, keeping the rest.
+     */
+    public function add(string $name, string $category): void
+    {
+        $this->save([$name => ['category' => $category, 'icd' => '']] + $this->entries());
+    }
+
+    /**
      * Illness names used in any tree but missing from the catalog - for admins, to give them a category.
      *
      * @return list<string>

@@ -221,6 +221,13 @@ class Sitzung:
         form = urllib.parse.urlencode({"_csrf": self.csrf, **felder}).encode()
         return self._senden(urllib.request.Request(self.url(route), data=form, method="POST"))
 
+    def json_post(self, aktion, baum, rumpf):
+        route = f"/module/_family-health_/{aktion}" + (f"/{baum}" if baum else "")
+        req = urllib.request.Request(self.url(route), data=json.dumps(rumpf).encode(), method="POST")
+        req.add_header("Content-Type", "application/json")
+        req.add_header("X-CSRF-TOKEN", self.csrf)
+        return self._senden(req)
+
     def info(self):
         # Die Startseite des Baums hat den CSRF-Token im Kopf - fuer Gaeste wie fuer Angemeldete.
         a = self._senden(urllib.request.Request(self.url("/tree/testbaum")))

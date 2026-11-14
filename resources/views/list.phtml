@@ -13,6 +13,11 @@ use Fisharebest\Webtrees\Tree;
  * @var Tree                                                                         $tree
  * @var bool                                                                         $is_linked
  * @var list<array{individual:Individual,illness:string,category:string,date:string,degree:int}> $illnesses
+ * @var bool                                                                         $can_add
+ * @var Individual|null                                                              $own
+ * @var array<string,array{category:string,icd:string}>                              $catalog
+ * @var string                                                                       $add_url
+ * @var array<string,string>                                                         $categories
  */
 
 $category_names = Catalog::categoryNames();
@@ -48,4 +53,46 @@ $category_names = Catalog::categoryNames();
             <?php endforeach ?>
         </tbody>
     </table>
+<?php endif ?>
+
+<?php if ($can_add) : ?>
+    <h3 class="h5 mt-4"><?= I18N::translate('Record an illness') ?></h3>
+    <form method="post" action="<?= e($add_url) ?>" class="wt-family-health-add">
+        <?= csrf_field() ?>
+        <div class="row mb-2">
+            <label class="col-sm-3 col-form-label" for="xref"><?= I18N::translate('Individual') ?></label>
+            <div class="col-sm-9"><?= view('components/select-individual', ['name' => 'xref', 'tree' => $tree, 'individual' => $own, 'required' => true]) ?></div>
+        </div>
+        <div class="row mb-2">
+            <label class="col-sm-3 col-form-label" for="illness"><?= I18N::translate('Illness') ?></label>
+            <div class="col-sm-9">
+                <input class="form-control" id="illness" name="illness" list="family-health-catalog" required maxlength="120" autocomplete="off">
+                <datalist id="family-health-catalog">
+                    <?php foreach ($catalog as $name => $entry) : ?>
+                        <option value="<?= e($name) ?>"><?= e($categories[$entry['category']]) ?></option>
+                    <?php endforeach ?>
+                </datalist>
+            </div>
+        </div>
+        <div class="row mb-2">
+            <label class="col-sm-3 col-form-label" for="category"><?= I18N::translate('Category') ?></label>
+            <div class="col-sm-9">
+                <select class="form-select" id="category" name="category">
+                    <option value=""></option>
+                    <?php foreach ($categories as $id => $label) : ?>
+                        <option value="<?= e($id) ?>"><?= e($label) ?></option>
+                    <?php endforeach ?>
+                </select>
+                <div class="form-text"><?= I18N::translate('Only for an illness not yet in the list – it is then added with this category.') ?></div>
+            </div>
+        </div>
+        <div class="row mb-2">
+            <label class="col-sm-3 col-form-label" for="date"><?= I18N::translate('Date of diagnosis') ?></label>
+            <div class="col-sm-9">
+                <input class="form-control" id="date" name="date" dir="ltr" placeholder="ABT 1975">
+            </div>
+        </div>
+        <p class="form-text"><?= I18N::translate('Only blood relatives of the individual will see it – you, too, only if you are one of them.') ?></p>
+        <button type="submit" class="btn btn-primary"><?= I18N::translate('save') ?></button>
+    </form>
 <?php endif ?>

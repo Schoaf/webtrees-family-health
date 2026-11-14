@@ -115,6 +115,40 @@ class ModulTest(unittest.TestCase):
     def test_katalog_nur_fuer_mitglieder(self):
         self.assertNotEqual(200, U.sitzung().get("Catalog", "testbaum").status)
 
+    def test_eintragen(self):
+        # Bearbeiterin Anna traegt bei ihrer Mutter eine neue Erkrankung ein: ausstehende Aenderung, noch nicht sichtbar
+        anna = U.sitzung("bearbeiter")
+        self.assertIn('name="illness"', anna.get("List", "testbaum").text)
+        a = anna.formular("Add", {"xref": "I2", "illness": "Markerneu", "category": "cancer", "date": "ABT 1970"}, "testbaum")
+        self.assertIn(a.status, (302, 303))
+        neu = umgebung.sql("SELECT new_gedcom FROM wt_change WHERE xref='I2' AND status='pending'")
+        self.assertEqual(1, len(neu))
+        self.assertIn("1 FACT Markerneu\n2 TYPE Erkrankung\n2 DATE ABT 1970\n2 RESN confidential", neu[0][0])
+        self.assertNotIn("Markerneu", U.sitzung("mitglied").get("Illnesses", "testbaum").text)
+        # neuer Name kam mit seiner Kategorie in den Katalog
+        katalog = {e["name"]: e["category"] for e in U.sitzung("mitglied").get("Catalog", "testbaum").json["illnesses"]}
+        self.assertEqual("cancer", katalog["Markerneu"])
+
+        # Admin (Aenderungen sofort angenommen) traegt per JSON bei Fritz ein; Fritz sieht es, der Admin selbst nicht
+        admin = U.sitzung("admin")
+        self.assertEqual({"ok": True}, admin.json_post("Illness", "testbaum", {"xref": "I12", "illness": "Markeradmin@x"}).json)
+        self.assertIn("Markeradmin@x", U.sitzung("verwalter").get("Illnesses", "testbaum").text)
+        self.assertNotIn("Markeradmin", admin.get("Illnesses", "testbaum").text)
+        self.assertIn("1 FACT Markeradmin@@x\n2 TYPE Erkrankung\n2 RESN confidential",
+                      umgebung.sql("SELECT i_gedcom FROM wt_individuals WHERE i_id='I12'")[0][0])
+
+    def test_eintragen_abgelehnt(self):
+        mitglied = U.sitzung("mitglied")
+        self.assertNotIn('name="illness"', mitglied.get("List", "testbaum").text)
+        a = mitglied.json_post("Illness", "testbaum", {"xref": "I3", "illness": "Markerverboten"})
+        self.assertEqual((400, False), (a.status, a.json["ok"]))
+        admin = U.sitzung("admin")
+        for rumpf in ({"xref": "I3", "illness": ""}, {"xref": "I3", "illness": "X", "date": "kein Datum"},
+                      {"xref": "I999", "illness": "X"}, {"xref": "I3", "illness": "y" * 121}):
+            self.assertEqual(400, admin.json_post("Illness", "testbaum", rumpf).status, rumpf)
+        self.assertEqual(403, U.sitzung().json_post("Illness", "testbaum", {"xref": "I3", "illness": "X"}).status)
+        self.assertNotIn("Markerverboten", umgebung.sql("SELECT group_concat(i_gedcom) FROM wt_individuals")[0][0])
+
     def test_ohne_person_ein_hinweis(self):
         self.assertIn("keiner Person", U.sitzung("admin").get("List", "testbaum").text)
 

@@ -5,16 +5,24 @@ declare(strict_types=1);
 namespace FamilyHealth;
 
 use Fisharebest\Webtrees\Contracts\UserInterface;
+use Fisharebest\Webtrees\Date;
 use Fisharebest\Webtrees\DB;
+use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Individual;
 use Fisharebest\Webtrees\Registry;
+use Fisharebest\Webtrees\Site;
 use Fisharebest\Webtrees\Tree;
 
 use function array_chunk;
 use function array_keys;
+use function explode;
+use function in_array;
+use function mb_strlen;
 use function min;
 use function preg_match;
 use function preg_match_all;
+use function preg_replace;
+use function str_replace;
 use function trim;
 
 use const PREG_SET_ORDER;
@@ -33,6 +41,10 @@ final class Illnesses
     private const string ILLNESS_TYPE = '/^(illness|erkrankung|krankheit)$/i';
 
     private const int CHUNK = 500;
+
+    // How a new illness is marked in 2 TYPE: in the site's language, so webtrees' own pages read naturally.
+    private const array TYPE_BY_LANGUAGE = ['de' => 'Erkrankung'];
+    private const string TYPE_DEFAULT    = 'Illness';
 
     /**
      * Individuals whose illnesses $user may see, with the degree from the nearest of the user's own individual and
@@ -102,6 +114,47 @@ final class Illnesses
     }
 
     /**
+     * Records an illness of $individual: 1 FACT <name> / 2 TYPE / 2 DATE / 2 RESN confidential. Goes through pending
+     * changes like any edit. A name new to the catalog is added with $category, if one is given.
+     *
+     * @return string|null what is wrong, in the user's language - null when it is recorded
+     */
+    public static function record(Individual $individual, string $name, string $date, string $category, Catalog $catalog): string|null
+    {
+        $name = trim((string) preg_replace('/[\x00-\x1F\x7F]+/u', ' ', $name));
+        $date = trim((string) preg_replace('/[\x00-\x1F\x7F]+/u', ' ', $date));
+
+        if (!$individual->canEdit()) {
+            return I18N::translate('You may not change this individual.');
+        }
+
+        if ($name === '' || mb_strlen($name) > Catalog::NAME_MAX_LENGTH) {
+            return I18N::translate('Enter the name of the illness.');
+        }
+
+        if ($date !== '' && !(new Date($date))->isOK()) {
+            return I18N::translate('The date is not valid.');
+        }
+
+        $known = $catalog->find($name);
+
+        if ($known === null && in_array($category, Catalog::CATEGORIES, true)) {
+            $catalog->add($name, $category);
+        }
+
+        $language = explode('-', Site::getPreference('LANGUAGE'))[0];
+        $gedcom   = '1 FACT ' . str_replace('@', '@@', $known['name'] ?? $name) . "\n2 TYPE " . (self::TYPE_BY_LANGUAGE[$language] ?? self::TYPE_DEFAULT);
+
+        if ($date !== '') {
+            $gedcom .= "\n2 DATE " . str_replace('@', '@@', $date);
+        }
+
+        $individual->createFact($gedcom . "\n2 RESN confidential", true);
+
+        return null;
+    }
+
+    /**
      * @return list<array{0:string,1:string}> illness name and GEDCOM date
      */
     public static function illnessesIn(string $gedcom): array
@@ -112,8 +165,9 @@ final class Illnesses
 
         foreach ($facts as $fact) {
             if (preg_match('/\n2 TYPE (.*)/', $fact[2], $type) === 1 && preg_match(self::ILLNESS_TYPE, trim($type[1])) === 1) {
-                $date    = preg_match('/\n2 DATE (.*)/', $fact[2], $match) === 1 ? trim($match[1]) : '';
-                $found[] = [trim($fact[1]), $date];
+                // GEDCOM doubles an @ in text.
+                $date    = preg_match('/\n2 DATE (.*)/', $fact[2], $match) === 1 ? str_replace('@@', '@', trim($match[1])) : '';
+                $found[] = [str_replace('@@', '@', trim($fact[1])), $date];
             }
         }
 

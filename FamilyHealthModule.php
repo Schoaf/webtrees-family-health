@@ -15,6 +15,8 @@ use Fisharebest\Webtrees\Module\ModuleCustomInterface;
 use Fisharebest\Webtrees\Module\ModuleCustomTrait;
 use Fisharebest\Webtrees\Module\ModuleListInterface;
 use Fisharebest\Webtrees\Module\ModuleListTrait;
+use Fisharebest\Webtrees\Registry;
+use Fisharebest\Webtrees\Tree;
 use Fisharebest\Webtrees\Validator;
 use Fisharebest\Webtrees\View;
 use Psr\Http\Message\ResponseInterface;
@@ -25,10 +27,13 @@ use function explode;
 use function in_array;
 use function is_array;
 use function is_file;
+use function is_string;
+use function json_decode;
 use function preg_match;
 use function range;
 use function redirect;
 use function response;
+use function route;
 use function str_starts_with;
 use function strip_tags;
 
@@ -138,11 +143,71 @@ class FamilyHealthModule extends AbstractModule implements ModuleCustomInterface
         Auth::checkComponentAccess($this, ModuleListInterface::class, $tree, $user);
 
         return $this->viewResponse($this->name() . '::list', [
-            'title'     => $this->title(),
-            'tree'      => $tree,
-            'is_linked' => $tree->getUserPreference($user, UserInterface::PREF_TREE_ACCOUNT_XREF) !== '',
-            'illnesses' => Illnesses::visibleTo($tree, $user, $this->maxDegree(), $this->catalog()),
+            'title'      => $this->title(),
+            'tree'       => $tree,
+            'is_linked'  => $tree->getUserPreference($user, UserInterface::PREF_TREE_ACCOUNT_XREF) !== '',
+            'illnesses'  => Illnesses::visibleTo($tree, $user, $this->maxDegree(), $this->catalog()),
+            'can_add'    => Auth::isEditor($tree, $user),
+            'own'        => Registry::individualFactory()->make($tree->getUserPreference($user, UserInterface::PREF_TREE_ACCOUNT_XREF), $tree),
+            'catalog'    => $this->catalog()->entries(),
+            'add_url'    => route('module', ['module' => $this->name(), 'action' => 'Add', 'tree' => $tree->name()]),
+            'categories' => Catalog::categoryNames(),
         ]);
+    }
+
+    /**
+     * The form on the page: record an illness. Editors only; goes through pending changes.
+     */
+    public function postAddAction(ServerRequestInterface $request): ResponseInterface
+    {
+        $tree = Validator::attributes($request)->tree();
+        $user = Validator::attributes($request)->user();
+        $body = Validator::parsedBody($request);
+
+        Auth::checkComponentAccess($this, ModuleListInterface::class, $tree, $user);
+
+        $error = $this->recordFor($tree, $user, $body->string('xref', ''), $body->string('illness', ''), $body->string('date', ''), $body->string('category', ''));
+
+        FlashMessages::addMessage($error ?? I18N::translate('The illness has been recorded. It shows once the change is accepted.'), $error === null ? 'success' : 'danger');
+
+        return redirect($this->listUrl($tree));
+    }
+
+    /**
+     * JSON for apps: record an illness - {"xref", "illness", "date"?, "category"?}. Answers {"ok": true} or
+     * {"ok": false, "error": "..."}.
+     */
+    public function postIllnessAction(ServerRequestInterface $request): ResponseInterface
+    {
+        $tree = Validator::attributes($request)->tree();
+        $user = Validator::attributes($request)->user();
+        $body = json_decode((string) $request->getBody(), true);
+        $body = is_array($body) ? $body : [];
+
+        Auth::checkComponentAccess($this, ModuleListInterface::class, $tree, $user);
+
+        $text  = static fn (string $key): string => is_string($body[$key] ?? null) ? $body[$key] : '';
+        $error = $this->recordFor($tree, $user, $text('xref'), $text('illness'), $text('date'), $text('category'));
+
+        return response($error === null ? ['ok' => true] : ['ok' => false, 'error' => $error], $error === null ? 200 : 400);
+    }
+
+    /**
+     * @return string|null what is wrong - null when recorded
+     */
+    private function recordFor(Tree $tree, UserInterface $user, string $xref, string $illness, string $date, string $category): string|null
+    {
+        if (!Auth::isEditor($tree, $user)) {
+            return I18N::translate('You may not change this individual.');
+        }
+
+        $individual = Registry::individualFactory()->make($xref, $tree);
+
+        if ($individual === null) {
+            return I18N::translate('Choose an individual.');
+        }
+
+        return Illnesses::record($individual, $illness, $date, $category, $this->catalog());
     }
 
     /**

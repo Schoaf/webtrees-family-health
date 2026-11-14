@@ -8,6 +8,8 @@
 - Illness catalog: name → category and ICD-10 code, ten categories, starter list in German and English, edited in the
   settings (with the names used in a tree but missing); JSON `Catalog/{tree}`; the category in the list and in
   `Illnesses`.
+- Record an illness: form on the page for editors and JSON `Illness` (POST); the module sets `2 TYPE` and
+  `2 RESN confidential` itself, the change goes through pending changes, a new name joins the catalog with its category.
 
 ## 0.1.0
 

@@ -4,8 +4,9 @@
 
 Record illnesses in your family tree and sum them up for the doctor: *"Any cases of this in your family?"*
 
-> Work in progress – so far the visibility rule and a plain list of the illnesses you may see (page "Family health",
-> menu *Lists*, and JSON `Illnesses/{tree}` for apps) and the catalog. The entry form is still to come.
+> Work in progress – so far the visibility rule, a plain list of the illnesses you may see (page "Family health",
+> menu *Lists*), the catalog and recording an illness. The family health history by person and category is still to
+> come.
 > The plan is in [webtrees-mobile#54](https://github.com/Schoaf/webtrees-mobile/issues/54).
 
 ## How illnesses are stored
@@ -42,6 +43,23 @@ mental health, lungs, kidneys, hereditary syndromes, other. An illness not in th
 The catalog starts with about 40 common illnesses in the site's language (German or English) and is edited in the
 module's settings, which also list names used in a tree but missing from the catalog. JSON `Catalog/{tree}` gives apps
 the categories and the catalog, as suggestions when entering an illness. It holds only names, never who has them.
+
+## Recording an illness
+
+Editors find a form on the page "Family health": individual, illness (suggested from the catalog), date of diagnosis
+and – for a name not in the catalog yet – its category, which adds it there. The module writes the fact itself,
+`2 TYPE` in the site's language (*Erkrankung* or *Illness*) and always `2 RESN confidential`; it goes through pending
+changes like any edit. The editor, too, sees it afterwards only if they are a blood relative.
+
+## JSON for apps
+
+Same session and CSRF token as webtrees (and api4webtrees), route `/module/_family-health_/<Action>/{tree}`:
+
+| Action | | |
+|---|---|---|
+| `Illnesses` | GET | the illnesses you may see: `xref`, `name`, `illness`, `category`, `date`, `degree` |
+| `Catalog` | GET | `categories` (`id`, `name`) and the catalog `illnesses` (`name`, `category`, `icd`) |
+| `Illness` | POST | record one, editors only: `{"xref", "illness", "date"?, "category"?}` → `{"ok": true}` or 400 with `error` |
 
 ## Installation
 
