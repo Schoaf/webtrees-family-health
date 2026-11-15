@@ -178,6 +178,22 @@ class ModulTest(unittest.TestCase):
         self.assertIn("Markermutter", paul.get("History", "testbaum", xref="I6", category="other").text)
         self.assertNotIn("Markermutter", paul.get("History", "testbaum", xref="I6", category="cancer").text)
 
+    def test_anamnese_json(self):
+        paul = U.sitzung("mitglied")
+        eigene = paul.get("FamilyHistory", "testbaum").json
+        self.assertEqual(["I3", "I6"], [p["xref"] for p in eigene["subjects"]])
+        self.assertEqual(("I3", 50), (eigene["xref"], eigene["earlyAge"]))
+        mutter = next(e for e in eigene["illnesses"] if e["illness"] == "Markermutter")
+        self.assertEqual({"xref": "I2", "relationship": "Mutter", "degree": 1, "category": "other", "date": "ABT 1960",
+                          "dateText": "um 1960", "age": 54, "isEarly": False},
+                         {k: mutter[k] for k in ("xref", "relationship", "degree", "category", "date", "dateText", "age", "isEarly")})
+        kind = paul.get("FamilyHistory", "testbaum", xref="I6").json
+        ernst = next(e for e in kind["illnesses"] if e["illness"] == "Markerpartnervater")
+        self.assertEqual((2, 34, True), (ernst["degree"], ernst["age"], ernst["isEarly"]))
+        self.assertEqual(404, paul.get("FamilyHistory", "testbaum", xref="I12").status)
+        self.assertEqual({"subjects": [], "xref": None, "earlyAge": 50, "illnesses": []},
+                         U.sitzung("admin").get("FamilyHistory", "testbaum").json)
+
     def test_anamnese_nur_eigene_linie(self):
         # Fremde Person, erwachsenes Kind, Mutter: keine Anamnese - und kein Marker in der Antwort
         paul = U.sitzung("mitglied")

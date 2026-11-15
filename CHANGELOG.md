@@ -12,7 +12,7 @@
   `2 RESN confidential` itself, the change goes through pending changes, a new name joins the catalog with its category.
 - Family health history for the doctor: for your own individual or a child under 18, the relatives' illnesses by
   category with relationship, degree, ICD-10 code and age at diagnosis; early onset marked (age set in the settings);
-  filter by category; print view.
+  filter by category; print view. The same as JSON `FamilyHistory/{tree}` for apps.
 - Release workflow: a tag `v<version>` runs the tests, builds `family-health-<version>.zip` and publishes the release.
 
 ## 0.1.0

@@ -68,6 +68,7 @@ Same session and CSRF token as webtrees (and api4webtrees), route `/module/_fami
 |---|---|---|
 | `Illnesses` | GET | the illnesses you may see: `xref`, `name`, `illness`, `category`, `date`, `degree` |
 | `Catalog` | GET | `categories` (`id`, `name`) and the catalog `illnesses` (`name`, `category`, `icd`) |
+| `FamilyHistory` | GET | the family history, `?xref=` your own individual (default) or a child under 18: `subjects` (`xref`, `name`), `xref`, `earlyAge` and `illnesses` (`xref`, `name`, `relationship`, `degree`, `illness`, `category`, `icd`, `date`, `dateText`, `age`, `isEarly`) |
 | `Illness` | POST | record one, editors only: `{"xref", "illness", "date"?, "category"?}` → `{"ok": true}` or 400 with `error` |
 
 ## Installation

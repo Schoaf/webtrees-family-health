@@ -6,9 +6,11 @@ namespace FamilyHealth;
 
 use Fisharebest\Webtrees\Auth;
 use Fisharebest\Webtrees\Contracts\UserInterface;
+use Fisharebest\Webtrees\Date;
 use Fisharebest\Webtrees\FlashMessages;
 use Fisharebest\Webtrees\Http\Exceptions\HttpNotFoundException;
 use Fisharebest\Webtrees\I18N;
+use Fisharebest\Webtrees\Individual;
 use Fisharebest\Webtrees\Module\AbstractModule;
 use Fisharebest\Webtrees\Module\ModuleConfigInterface;
 use Fisharebest\Webtrees\Module\ModuleConfigTrait;
@@ -24,7 +26,10 @@ use Fisharebest\Webtrees\View;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 
-use function array_keys;
+use function array_column;
+use function array_flip;
+use function array_unique;
+use function array_values;
 use function array_map;
 use function explode;
 use function in_array;
@@ -172,63 +177,122 @@ class FamilyHealthModule extends AbstractModule implements ModuleCustomInterface
     public function getHistoryAction(ServerRequestInterface $request): ResponseInterface
     {
         $tree     = Validator::attributes($request)->tree();
-        $user     = Validator::attributes($request)->user();
-        $subjects = Illnesses::subjects($tree, $user);
-        $xref     = Validator::queryParams($request)->string('xref', $subjects[0] ?? '');
         $category = Validator::queryParams($request)->string('category', '');
-
-        Auth::checkComponentAccess($this, ModuleListInterface::class, $tree, $user);
-
-        $history = $subjects === [] ? [] : Illnesses::historyOf($tree, $user, $xref, $this->maxDegree(), $this->catalog());
-
-        if ($history === null) {
-            throw new HttpNotFoundException(I18N::translate('Choose an individual.'));
-        }
-
-        $early_age = $this->earlyAge();
-        $groups    = [];
-
-        foreach ($history as $entry) {
-            $entry['age']      = Illnesses::ageAtDiagnosis($entry['individual'], $entry['date']);
-            $entry['is_early'] = $early_age > 0 && $entry['age'] !== null && $entry['age'] < $early_age;
-            $groups[$entry['category']][] = $entry;
-        }
-
-        // Categories in their fixed order, inside by degree and then name.
-        $sorted = [];
+        $history  = $this->history($request);
+        $groups   = [];
 
         foreach (Catalog::CATEGORIES as $id) {
-            if (isset($groups[$id]) && ($category === '' || $category === $id)) {
-                usort($groups[$id], static fn (array $x, array $y): int => $x['degree'] <=> $y['degree'] ?: I18N::comparator()($x['individual']->sortName(), $y['individual']->sortName()));
-                $sorted[$id] = $groups[$id];
-            }
-        }
-
-        $individuals = [];
-
-        foreach ($subjects as $subject) {
-            $individual = Registry::individualFactory()->make($subject, $tree);
-
-            if ($individual !== null) {
-                $individuals[$subject] = $individual;
+            foreach ($history['entries'] as $entry) {
+                if ($entry['category'] === $id && ($category === '' || $category === $id)) {
+                    $groups[$id][] = $entry;
+                }
             }
         }
 
         return $this->viewResponse($this->name() . '::history', [
             'title'        => I18N::translate('Family health history'),
             'tree'         => $tree,
-            'is_linked'    => $subjects !== [],
-            'subject'      => $individuals[$xref] ?? null,
-            'subjects'     => $individuals,
-            'groups'       => $sorted,
-            'used'         => array_keys($groups),
+            'is_linked'    => $history['subjects'] !== [],
+            'subject'      => $history['subject'],
+            'subjects'     => $history['subjects'],
+            'groups'       => $groups,
+            'used'         => array_values(array_unique(array_column($history['entries'], 'category'))),
             'category'     => $category,
             'categories'   => Catalog::categoryNames(),
-            'early_age'    => $early_age,
+            'early_age'    => $this->earlyAge(),
             'url'          => fn (string $xref, string $category): string => $this->historyUrl($tree, $xref, $category),
             'relationship' => Registry::container()->get(RelationshipService::class),
             'list_url'     => $this->listUrl($tree),
         ]);
+    }
+
+    /**
+     * JSON for apps: the family history as on the page - ?xref= chooses the individual (default your own).
+     * {"subjects": [{xref, name}], "xref", "earlyAge", "illnesses": [{xref, name, relationship, degree, illness,
+     * category, icd, date, dateText, age, isEarly}]} - sorted by category, degree and name.
+     */
+    public function getFamilyHistoryAction(ServerRequestInterface $request): ResponseInterface
+    {
+        $history      = $this->history($request);
+        $relationship = Registry::container()->get(RelationshipService::class);
+        $subject      = $history['subject'];
+        $illnesses    = [];
+
+        foreach ($history['entries'] as $entry) {
+            $illnesses[] = [
+                'xref'         => $entry['individual']->xref(),
+                'name'         => strip_tags($entry['individual']->fullName()),
+                'relationship' => $subject === null ? '' : strip_tags($relationship->getCloseRelationshipName($subject, $entry['individual'])),
+                'degree'       => $entry['degree'],
+                'illness'      => $entry['illness'],
+                'category'     => $entry['category'],
+                'icd'          => $entry['icd'],
+                'date'         => $entry['date'],
+                'dateText'     => $entry['date'] === '' ? '' : strip_tags((new Date($entry['date']))->display()),
+                'age'          => $entry['age'],
+                'isEarly'      => $entry['is_early'],
+            ];
+        }
+
+        $subjects = [];
+
+        foreach ($history['subjects'] as $xref => $individual) {
+            $subjects[] = ['xref' => $xref, 'name' => strip_tags($individual->fullName())];
+        }
+
+        return response([
+            'subjects'  => $subjects,
+            'xref'      => $subject?->xref(),
+            'earlyAge'  => $this->earlyAge(),
+            'illnesses' => $illnesses,
+        ]);
+    }
+
+    /**
+     * The family history for the page and the JSON: the individuals to choose from, the chosen one and their
+     * relatives' illnesses (with age at diagnosis and early onset), sorted by category, degree and name. A 404 for
+     * an individual that is not one of the user's own.
+     *
+     * @return array{subjects:array<string,Individual>,subject:Individual|null,entries:list<array<string,mixed>>}
+     */
+    private function history(ServerRequestInterface $request): array
+    {
+        $tree     = Validator::attributes($request)->tree();
+        $user     = Validator::attributes($request)->user();
+
+        Auth::checkComponentAccess($this, ModuleListInterface::class, $tree, $user);
+
+        $xrefs    = Illnesses::subjects($tree, $user);
+        $xref     = Validator::queryParams($request)->string('xref', $xrefs[0] ?? '');
+        $entries  = $xrefs === [] ? [] : Illnesses::historyOf($tree, $user, $xref, $this->maxDegree(), $this->catalog());
+
+        if ($entries === null) {
+            throw new HttpNotFoundException(I18N::translate('Choose an individual.'));
+        }
+
+        $early_age = $this->earlyAge();
+        $order     = array_flip(Catalog::CATEGORIES);
+
+        foreach ($entries as $i => $entry) {
+            $entries[$i]['age']      = Illnesses::ageAtDiagnosis($entry['individual'], $entry['date']);
+            $entries[$i]['is_early'] = $early_age > 0 && $entries[$i]['age'] !== null && $entries[$i]['age'] < $early_age;
+        }
+
+        usort($entries, static fn (array $x, array $y): int => $order[$x['category']] <=> $order[$y['category']]
+            ?: $x['degree'] <=> $y['degree']
+            ?: I18N::comparator()($x['individual']->sortName(), $y['individual']->sortName()));
+
+        $subjects = [];
+
+        foreach ($xrefs as $subject) {
+            $individual = Registry::individualFactory()->make($subject, $tree);
+
+            if ($individual !== null) {
+                $subjects[$subject] = $individual;
+            }
+        }
+
+        return ['subjects' => $subjects, 'subject' => $subjects[$xref] ?? null, 'entries' => $entries];
     }
 
     private function historyUrl(Tree $tree, string $xref, string $category = ''): string
