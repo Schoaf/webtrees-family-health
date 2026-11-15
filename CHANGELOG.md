@@ -13,6 +13,7 @@
 - Family health history for the doctor: for your own individual or a child under 18, the relatives' illnesses by
   category with relationship, degree, ICD-10 code and age at diagnosis; early onset marked (age set in the settings);
   filter by category; print view.
+- Release workflow: a tag `v<version>` runs the tests, builds `family-health-<version>.zip` and publishes the release.
 
 ## 0.1.0
 

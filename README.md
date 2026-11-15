@@ -72,7 +72,12 @@ Same session and CSRF token as webtrees (and api4webtrees), route `/module/_fami
 
 ## Installation
 
-Copy this folder to `modules_v4/family-health` and enable the module. Requires webtrees 2.2 and PHP 8.3.
+Unpack the ZIP from the [latest release](https://github.com/Schoaf/webtrees-family-health/releases/latest) into
+`modules_v4/` – it holds the folder `family-health` – and enable the module. Requires webtrees 2.2 and PHP 8.3.
+
+A new release: set the version in `customModuleVersion()` and `latest-version.txt`, rename *Unreleased* in
+`CHANGELOG.md` to it and push the tag `v<version>`. The workflow runs the tests, builds the ZIP and publishes the
+release with the changelog section as notes.
 
 ## Tests
 
