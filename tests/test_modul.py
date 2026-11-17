@@ -162,6 +162,33 @@ class ModulTest(unittest.TestCase):
         self.assertIn("Erkrankung", seite.text)
         self.assertNotIn(">Illness<", seite.text)
 
+    def test_erkrankung_im_menue_tatsache_hinzufuegen(self):
+        anna = U.sitzung("bearbeiter")
+        tag = "_FAMILY_HEALTH_ILLNESS"
+        # Eintrag "Erkrankung" in der Liste "Tatsache hinzufuegen" der Personenseite
+        self.assertIn(f'<option value="{tag}">Erkrankung</option>', personenseite(anna, "I8").text)
+        # Er fuehrt zum Formular des Moduls fuer diese Person; andere Tatsachen weiter zu webtrees
+        weiter = anna._senden(umgebung.urllib.request.Request(anna.url(f"/tree/testbaum/add-fact/I8/{tag}")))
+        self.assertIn(weiter.status, (302, 303))
+        self.assertIn("Record", weiter.umleitung)
+        self.assertIn("xref=I8", weiter.umleitung)
+        self.assertEqual(200, anna._senden(umgebung.urllib.request.Request(anna.url("/tree/testbaum/add-fact/I8/OCCU"))).status)
+        formular = anna.get("Record", "testbaum", xref="I8")
+        self.assertEqual(200, formular.status)
+        self.assertIn('name="illness"', formular.text)
+        self.assertIn('name="from" value="individual"', formular.text)
+        # Nur fuer Bearbeiter
+        self.assertNotEqual(200, U.sitzung("mitglied").get("Record", "testbaum", xref="I8").status)
+        # Speichern: als FACT, zurueck zur Person; bei einem Fehler zurueck zum Formular
+        a = anna.formular("Add", {"xref": "I8", "illness": "Markermenue", "from": "individual"}, "testbaum")
+        self.assertIn(a.status, (302, 303))
+        self.assertIn("individual%2FI8", a.umleitung)
+        neu = umgebung.sql("SELECT new_gedcom FROM wt_change WHERE xref='I8' AND status='pending'")
+        self.assertIn("1 FACT Markermenue\n2 TYPE Illness\n2 RESN confidential", neu[-1][0])
+        self.assertNotIn(tag, neu[-1][0])
+        fehler = anna.formular("Add", {"xref": "I8", "illness": "", "from": "individual"}, "testbaum")
+        self.assertIn("Record", fehler.umleitung)
+
     def test_eintragen_abgelehnt(self):
         mitglied = U.sitzung("mitglied")
         self.assertNotIn('name="illness"', mitglied.get("List", "testbaum").text)

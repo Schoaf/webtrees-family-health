@@ -54,6 +54,10 @@ wird. Das Modul schreibt den Fakt selbst, immer `2 TYPE Illness` (webtrees zeigt
 *Erkrankung* und *Krankheit* werden ebenso gelesen) und `2 RESN confidential`; er geht wie jede Änderung durch die ausstehenden Änderungen. Auch der Bearbeiter sieht ihn danach
 nur, wenn er blutsverwandt ist.
 
+Dasselbe Formular öffnet sich auf der Personenseite: *Tatsache hinzufügen* → *Erkrankung*. webtrees kennt keinen
+Einstiegspunkt für ein eigenes Formular je Tatsache, deshalb stellt sich das Modul vor die webtrees-Seite *Tatsache
+hinzufügen* und leitet nur diesen Eintrag zu seinem Formular; der Eintrag selbst kommt nie in den Stammbaum.
+
 ## Familienanamnese
 
 Die Schaltfläche *Familienanamnese* auf der Seite öffnet, was ein Arzt fragt: für die eigene Person – oder eines der

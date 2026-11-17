@@ -7,8 +7,11 @@ namespace FamilyHealth;
 use Fisharebest\Webtrees\Auth;
 use Fisharebest\Webtrees\Contracts\UserInterface;
 use Fisharebest\Webtrees\Date;
+use Fisharebest\Webtrees\Elements\CustomFact;
 use Fisharebest\Webtrees\FlashMessages;
+use Fisharebest\Webtrees\Http\Exceptions\HttpAccessDeniedException;
 use Fisharebest\Webtrees\Http\Exceptions\HttpNotFoundException;
+use Fisharebest\Webtrees\Http\RequestHandlers\AddNewFact;
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Individual;
 use Fisharebest\Webtrees\Module\AbstractModule;
@@ -60,6 +63,10 @@ class FamilyHealthModule extends AbstractModule implements ModuleCustomInterface
     use ModuleConfigTrait;
     use ModuleCustomTrait;
     use ModuleListTrait;
+
+    // The entry "Illness" in webtrees' list "Add a fact". It only opens the module's form and never reaches the tree:
+    // the illness is saved as 1 FACT / 2 TYPE Illness.
+    public const string ILLNESS_TAG = '_FAMILY_HEALTH_ILLNESS';
 
     public const string DESCRIPTION = 'Record illnesses in the family and sum them up for the doctor – visible only to your own blood relatives.';
 
@@ -139,6 +146,15 @@ class FamilyHealthModule extends AbstractModule implements ModuleCustomInterface
     public function boot(): void
     {
         View::registerNamespace($this->name(), $this->resourcesFolder() . 'views/');
+
+        Registry::elementFactory()->registerTags(['INDI:' . self::ILLNESS_TAG => new CustomFact(I18N::translate('Illness'))]);
+        Registry::elementFactory()->registerSubTags(['INDI' => [[self::ILLNESS_TAG, '0:M']]]);
+
+        $container = Registry::container();
+        $container->set(AddNewFact::class, new AddIllnessRedirect(
+            $container->get(AddNewFact::class),
+            fn (Tree $tree, string $xref): string => route('module', ['module' => $this->name(), 'action' => 'Record', 'tree' => $tree->name(), 'xref' => $xref]),
+        ));
     }
 
     public function resourcesFolder(): string
@@ -167,6 +183,36 @@ class FamilyHealthModule extends AbstractModule implements ModuleCustomInterface
             'add_url'    => route('module', ['module' => $this->name(), 'action' => 'Add', 'tree' => $tree->name()]),
             'categories' => Catalog::categoryNames(),
             'history_url' => $this->historyUrl($tree, ''),
+            'module_name' => $this->name(),
+        ]);
+    }
+
+    /**
+     * The form to record an illness for one individual - where "Add a fact" → "Illness" leads. Editors only.
+     */
+    public function getRecordAction(ServerRequestInterface $request): ResponseInterface
+    {
+        $tree = Validator::attributes($request)->tree();
+        $user = Validator::attributes($request)->user();
+        $xref = Validator::queryParams($request)->isXref()->string('xref');
+
+        Auth::checkComponentAccess($this, ModuleListInterface::class, $tree, $user);
+
+        $individual = Auth::checkIndividualAccess(Registry::individualFactory()->make($xref, $tree));
+
+        // checkIndividualAccess() lets a reader through, too.
+        if (!$individual->canEdit()) {
+            throw new HttpAccessDeniedException(I18N::translate('You may not change this individual.'));
+        }
+
+        return $this->viewResponse($this->name() . '::record', [
+            'title'       => I18N::translate('Record an illness'),
+            'tree'        => $tree,
+            'individual'  => $individual,
+            'catalog'     => $this->catalog()->entries(),
+            'categories'  => Catalog::categoryNames(),
+            'add_url'     => route('module', ['module' => $this->name(), 'action' => 'Add', 'tree' => $tree->name()]),
+            'module_name' => $this->name(),
         ]);
     }
 
@@ -321,9 +367,19 @@ class FamilyHealthModule extends AbstractModule implements ModuleCustomInterface
 
         Auth::checkComponentAccess($this, ModuleListInterface::class, $tree, $user);
 
-        $error = $this->recordFor($tree, $user, $body->string('xref', ''), $body->string('illness', ''), $body->string('date', ''), $body->string('category', ''));
+        $xref  = $body->string('xref', '');
+        $error = $this->recordFor($tree, $user, $xref, $body->string('illness', ''), $body->string('date', ''), $body->string('category', ''));
 
         FlashMessages::addMessage($error ?? I18N::translate('The illness has been recorded. It shows once the change is accepted.'), $error === null ? 'success' : 'danger');
+
+        // From an individual's page: back there, or to the form again on an error.
+        $individual = Registry::individualFactory()->make($xref, $tree);
+
+        if ($body->string('from', '') === 'individual' && $individual !== null) {
+            return redirect($error === null
+                ? $individual->url()
+                : route('module', ['module' => $this->name(), 'action' => 'Record', 'tree' => $tree->name(), 'xref' => $xref]));
+        }
 
         return redirect($this->listUrl($tree));
     }

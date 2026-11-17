@@ -52,6 +52,10 @@ always `2 TYPE Illness` (webtrees shows it translated; *Erkrankung* and *Krankhe
 `2 RESN confidential`; it goes through pending
 changes like any edit. The editor, too, sees it afterwards only if they are a blood relative.
 
+The same form opens from an individual's page: *Add a fact* → *Illness*. webtrees has no hook for a form of its own
+per fact, so the module puts itself in front of webtrees' page *Add a fact* and sends only this entry to its form; the
+entry itself never reaches the tree.
+
 ## Family health history
 
 The button *Family health history* on the page opens what a doctor asks for: for your own individual – or one of your

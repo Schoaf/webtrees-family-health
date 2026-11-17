@@ -17,6 +17,7 @@
   illness too; its category comes from the catalog like any other.
 - New illnesses get `2 TYPE Illness` in every language (webtrees shows it translated); *Erkrankung* and *Krankheit*
   are still read.
+- *Add a fact* → *Illness* on an individual's page opens the module's form for that individual.
 - Release workflow: a tag `v<version>` runs the tests, builds `family-health-<version>.zip` and publishes the release.
 
 ## 0.1.0

@@ -1,0 +1,27 @@
+<?php
+
+declare(strict_types=1);
+
+use Fisharebest\Webtrees\I18N;
+use Fisharebest\Webtrees\Individual;
+use Fisharebest\Webtrees\Tree;
+
+/**
+ * "Add a fact" → "Illness" on an individual's page leads here.
+ *
+ * @var string                                            $title
+ * @var Tree                                              $tree
+ * @var Individual                                        $individual
+ * @var array<string,array{category:string,icd:string}>   $catalog
+ * @var array<string,string>                              $categories
+ * @var string                                            $add_url
+ * @var string                                            $module_name
+ */
+
+?>
+
+<h2 class="wt-page-title"><?= e($title) ?> – <?= $individual->fullName() ?></h2>
+
+<?= view($module_name . '::record-form', ['tree' => $tree, 'individual' => $individual, 'is_individual_fixed' => true, 'catalog' => $catalog, 'categories' => $categories, 'add_url' => $add_url]) ?>
+
+<p class="mt-3"><a href="<?= e($individual->url()) ?>"><?= I18N::translate('cancel') ?></a></p>
