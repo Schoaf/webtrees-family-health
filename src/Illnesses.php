@@ -11,13 +11,11 @@ use Fisharebest\Webtrees\DB;
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Individual;
 use Fisharebest\Webtrees\Registry;
-use Fisharebest\Webtrees\Site;
 use Fisharebest\Webtrees\Tree;
 
 use function array_chunk;
 use function array_map;
 use function array_keys;
-use function explode;
 use function in_array;
 use function mb_strlen;
 use function mb_strtolower;
@@ -31,7 +29,7 @@ use function trim;
 use const PREG_SET_ORDER;
 
 /**
- * The illnesses a user may see: facts "1 FACT <illness> / 2 TYPE Erkrankung" and causes of death (1 DEAT / 2 CAUS) of
+ * The illnesses a user may see: facts "1 FACT <illness> / 2 TYPE Illness" (or Erkrankung, Krankheit) and causes of death (1 DEAT / 2 CAUS) of
  * their blood relatives and of the blood relatives of their children under 18. The rule holds for every role, admins too - who has no individual
  * linked to their account sees none.
  *
@@ -45,9 +43,9 @@ final class Illnesses
 
     private const int CHUNK = 500;
 
-    // How a new illness is marked in 2 TYPE: in the site's language, so webtrees' own pages read naturally.
-    private const array TYPE_BY_LANGUAGE = ['de' => 'Erkrankung'];
-    private const string TYPE_DEFAULT    = 'Illness';
+    // How a new illness is marked in 2 TYPE: the same in every language, so a tree stays uniform in an export.
+    // webtrees translates the type when it shows the fact (resources/lang).
+    private const string TYPE = 'Illness';
 
     /**
      * Whose family history $user may look at: their own individual and their children under 18 - the people the
@@ -211,8 +209,7 @@ final class Illnesses
             $catalog->add($name, $category);
         }
 
-        $language = explode('-', Site::getPreference('LANGUAGE'))[0];
-        $gedcom   = '1 FACT ' . str_replace('@', '@@', $known['name'] ?? $name) . "\n2 TYPE " . (self::TYPE_BY_LANGUAGE[$language] ?? self::TYPE_DEFAULT);
+        $gedcom = '1 FACT ' . str_replace('@', '@@', $known['name'] ?? $name) . "\n2 TYPE " . self::TYPE;
 
         if ($date !== '') {
             $gedcom .= "\n2 DATE " . str_replace('@', '@@', $date);

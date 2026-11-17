@@ -15,6 +15,8 @@
   filter by category; print view. The same as JSON `FamilyHistory/{tree}` for apps.
 - The cause of death (`1 DEAT / 2 CAUS`) counts as an illness at the date of death, once if it is recorded as an
   illness too; its category comes from the catalog like any other.
+- New illnesses get `2 TYPE Illness` in every language (webtrees shows it translated); *Erkrankung* and *Krankheit*
+  are still read.
 - Release workflow: a tag `v<version>` runs the tests, builds `family-health-<version>.zip` and publishes the release.
 
 ## 0.1.0

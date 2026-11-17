@@ -15,7 +15,7 @@ As plain GEDCOM facts, readable by any genealogy program:
 
 ```
 1 FACT Diabetes mellitus Typ 2
-2 TYPE Erkrankung
+2 TYPE Illness
 2 DATE ABT 1960
 2 RESN confidential
 ```
@@ -48,7 +48,8 @@ the categories and the catalog, as suggestions when entering an illness. It hold
 
 Editors find a form on the page "Family health": individual, illness (suggested from the catalog), date of diagnosis
 and – for a name not in the catalog yet – its category, which adds it there. The module writes the fact itself,
-`2 TYPE` in the site's language (*Erkrankung* or *Illness*) and always `2 RESN confidential`; it goes through pending
+always `2 TYPE Illness` (webtrees shows it translated; *Erkrankung* and *Krankheit* are read as well) and
+`2 RESN confidential`; it goes through pending
 changes like any edit. The editor, too, sees it afterwards only if they are a blood relative.
 
 ## Family health history

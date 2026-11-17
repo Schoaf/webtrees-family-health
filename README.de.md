@@ -15,7 +15,7 @@ Als gewöhnliche GEDCOM-Fakten, lesbar für jedes Genealogie-Programm:
 
 ```
 1 FACT Diabetes mellitus Typ 2
-2 TYPE Erkrankung
+2 TYPE Illness
 2 DATE ABT 1960
 2 RESN confidential
 ```
@@ -50,8 +50,8 @@ nie, wer betroffen ist.
 
 Bearbeiter finden auf der Seite „Familiengesundheit“ ein Formular: Person, Erkrankung (Vorschläge aus dem Katalog),
 Datum der Diagnose und – bei einem Namen, der noch nicht im Katalog steht – seine Kategorie, mit der er dort aufgenommen
-wird. Das Modul schreibt den Fakt selbst, `2 TYPE` in der Sprache der Website (*Erkrankung* bzw. *Illness*) und immer
-`2 RESN confidential`; er geht wie jede Änderung durch die ausstehenden Änderungen. Auch der Bearbeiter sieht ihn danach
+wird. Das Modul schreibt den Fakt selbst, immer `2 TYPE Illness` (webtrees zeigt es übersetzt;
+*Erkrankung* und *Krankheit* werden ebenso gelesen) und `2 RESN confidential`; er geht wie jede Änderung durch die ausstehenden Änderungen. Auch der Bearbeiter sieht ihn danach
 nur, wenn er blutsverwandt ist.
 
 ## Familienanamnese

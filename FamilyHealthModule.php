@@ -49,7 +49,7 @@ use function usort;
 /**
  * The module: metadata, the page "Family health" (menu Lists), the family history for the doctor and the settings.
  *
- * Illnesses are plain GEDCOM facts in the tree (1 FACT <illness> / 2 TYPE Erkrankung / 2 RESN confidential). Who
+ * Illnesses are plain GEDCOM facts in the tree (1 FACT <illness> / 2 TYPE Illness / 2 RESN confidential). Who
  * sees which is decided by the module itself (blood relatives of your own individual and of your children under 18)
  * - see README.
  *

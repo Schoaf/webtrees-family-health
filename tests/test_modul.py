@@ -35,6 +35,14 @@ SICHTBAR = {
 }
 
 
+def personenseite(sitzung, xref):
+    # webtrees leitet /individual/<xref> auf die Adresse mit dem Namen um.
+    antwort = sitzung._senden(umgebung.urllib.request.Request(sitzung.url(f"/tree/testbaum/individual/{xref}")))
+    if antwort.umleitung:
+        antwort = sitzung._senden(umgebung.urllib.request.Request(umgebung.urllib.parse.urljoin(sitzung.basis, antwort.umleitung)))
+    return antwort
+
+
 def grade(antwort):
     return {e["illness"]: e["degree"] for e in antwort.json["illnesses"]}
 
@@ -135,7 +143,7 @@ class ModulTest(unittest.TestCase):
         self.assertIn(a.status, (302, 303))
         neu = umgebung.sql("SELECT new_gedcom FROM wt_change WHERE xref='I2' AND status='pending'")
         self.assertEqual(1, len(neu))
-        self.assertIn("1 FACT Markerneu\n2 TYPE Erkrankung\n2 DATE ABT 1970\n2 RESN confidential", neu[0][0])
+        self.assertIn("1 FACT Markerneu\n2 TYPE Illness\n2 DATE ABT 1970\n2 RESN confidential", neu[0][0])
         self.assertNotIn("Markerneu", U.sitzung("mitglied").get("Illnesses", "testbaum").text)
         # neuer Name kam mit seiner Kategorie in den Katalog
         katalog = {e["name"]: e["category"] for e in U.sitzung("mitglied").get("Catalog", "testbaum").json["illnesses"]}
@@ -146,8 +154,13 @@ class ModulTest(unittest.TestCase):
         self.assertEqual({"ok": True}, admin.json_post("Illness", "testbaum", {"xref": "I12", "illness": "Markeradmin@x"}).json)
         self.assertIn("Markeradmin@x", U.sitzung("verwalter").get("Illnesses", "testbaum").text)
         self.assertNotIn("Markeradmin", admin.get("Illnesses", "testbaum").text)
-        self.assertIn("1 FACT Markeradmin@@x\n2 TYPE Erkrankung\n2 RESN confidential",
+        self.assertIn("1 FACT Markeradmin@@x\n2 TYPE Illness\n2 RESN confidential",
                       umgebung.sql("SELECT i_gedcom FROM wt_individuals WHERE i_id='I12'")[0][0])
+        # webtrees zeigt den Typ uebersetzt (Verwalter sieht vertrauliche Fakten)
+        seite = personenseite(U.sitzung("verwalter"), "I12")
+        self.assertEqual(200, seite.status)
+        self.assertIn("Erkrankung", seite.text)
+        self.assertNotIn(">Illness<", seite.text)
 
     def test_eintragen_abgelehnt(self):
         mitglied = U.sitzung("mitglied")
