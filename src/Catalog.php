@@ -135,7 +135,9 @@ final class Catalog
     {
         $missing = [];
 
-        foreach (DB::table('individuals')->where('i_gedcom', 'LIKE', '%1 FACT %')->pluck('i_gedcom') as $gedcom) {
+        foreach (DB::table('individuals')
+            ->where(static fn ($query) => $query->where('i_gedcom', 'LIKE', '%1 FACT %')->orWhere('i_gedcom', 'LIKE', '%2 CAUS %'))
+            ->pluck('i_gedcom') as $gedcom) {
             foreach (Illnesses::illnessesIn((string) $gedcom) as [$name]) {
                 if ($this->find($name) === null && !in_array($name, $missing, true)) {
                     $missing[] = $name;

@@ -22,14 +22,14 @@ def tearDownModule():
         U.abbauen()
 
 
-MARKER = ["Markermutter", "Markerschwager", "Markernichte", "Markerpartnervater", "Markerfremd", "Markeradoptiert"]
+MARKER = ["Markertodesursache", "Markermutter", "Markerschwager", "Markernichte", "Markerpartnervater", "Markerfremd", "Markeradoptiert"]
 
-# Konto -> sichtbare Marker. Paul (I3): Mutter, Nichte (Annas Tochter), ueber sein Kind unter 18 der Vater seiner Partnerin; nicht der
-# Schwager, nicht das Adoptivkind, nicht der Fremde. Anna (I4): Mutter, ihre (erwachsene) Tochter; ihr Mann nicht.
+# Konto -> sichtbare Marker. Paul (I3): Todesursache des Vaters, Mutter, Nichte (Annas Tochter), ueber sein Kind unter 18 der Vater seiner Partnerin; nicht der
+# Schwager, nicht das Adoptivkind, nicht der Fremde. Anna (I4): Vater, Mutter, ihre (erwachsene) Tochter; ihr Mann nicht.
 # Fritz (I12) nur sich selbst. admin hat keine Person - auch er sieht nichts.
 SICHTBAR = {
-    "mitglied": {"Markermutter", "Markernichte", "Markerpartnervater"},
-    "bearbeiter": {"Markermutter", "Markernichte"},
+    "mitglied": {"Markertodesursache", "Markermutter", "Markernichte", "Markerpartnervater"},
+    "bearbeiter": {"Markertodesursache", "Markermutter", "Markernichte"},
     "verwalter": {"Markerfremd"},
     "admin": set(),
 }
@@ -62,17 +62,17 @@ class ModulTest(unittest.TestCase):
         self.assertNotIn("Markermutter", seite.text)
 
     def test_grade(self):
-        # Mutter 1, Nichte 2; Vater der Partnerin: 2. Grad zum Kind (Grossvater)
-        self.assertEqual({"Markermutter": 1, "Markernichte": 2, "Markerpartnervater": 2},
+        # Vater (Todesursache) und Mutter 1, Nichte 2; Vater der Partnerin: 2. Grad zum Kind (Grossvater)
+        self.assertEqual({"Markertodesursache": 1, "Markermutter": 1, "Markernichte": 2, "Markerpartnervater": 2},
                          grade(U.sitzung("mitglied").get("Illnesses", "testbaum")))
-        # Anna: Mutter 1, Tochter 1
-        self.assertEqual({"Markermutter": 1, "Markernichte": 1}, grade(U.sitzung("bearbeiter").get("Illnesses", "testbaum")))
+        # Anna: Vater 1, Mutter 1, Tochter 1
+        self.assertEqual({"Markertodesursache": 1, "Markermutter": 1, "Markernichte": 1}, grade(U.sitzung("bearbeiter").get("Illnesses", "testbaum")))
 
     def test_grenze_nach_grad(self):
         admin = U.sitzung("admin")
         try:
             admin.formular("Admin", {"max_degree": "1"})
-            self.assertEqual({"Markermutter": 1},
+            self.assertEqual({"Markertodesursache": 1, "Markermutter": 1},
                              grade(U.sitzung("mitglied").get("Illnesses", "testbaum")))
         finally:
             admin.formular("Admin", {"max_degree": "0"})
@@ -83,6 +83,7 @@ class ModulTest(unittest.TestCase):
         # Startliste in der Sprache des Servers, Namen aus dem Baum ohne Kategorie zum Aufnehmen angeboten
         self.assertIn('value="Brustkrebs"', seite)
         self.assertIn('value="Markermutter"', seite)
+        self.assertIn('value="Markertodesursache"', seite)
         katalog = U.sitzung("mitglied").get("Catalog", "testbaum").json
         self.assertIn({"id": "cancer", "name": "Krebs"}, katalog["categories"])
         self.assertIn({"name": "Brustkrebs", "category": "cancer", "icd": "C50"}, katalog["illnesses"])
@@ -111,6 +112,17 @@ class ModulTest(unittest.TestCase):
         for e in U.sitzung("mitglied").get("Illnesses", "testbaum").json["illnesses"]:
             if e["illness"] == krankheit:
                 return e["category"]
+
+    def test_todesursache(self):
+        # Zaehlt als Erkrankung am Todestag (Theodor *1.3.1900, +5.5.1970: 70), ohne Kategorie "Sonstiges"
+        vater = next(e for e in U.sitzung("mitglied").get("FamilyHistory", "testbaum").json["illnesses"]
+                     if e["illness"] == "Markertodesursache")
+        self.assertEqual({"xref": "I1", "category": "other", "date": "5 MAY 1970", "age": 70},
+                         {k: vater[k] for k in ("xref", "category", "date", "age")})
+        # Schon als Erkrankung erfasst (auch anders geschrieben): nur einmal
+        namen = [e["illness"] for e in U.sitzung("verwalter").get("Illnesses", "testbaum").json["illnesses"]]
+        self.assertEqual(1, namen.count("Markerfremd"))
+        self.assertNotIn("markerfremd", namen)
 
     def test_katalog_nur_fuer_mitglieder(self):
         self.assertNotEqual(200, U.sitzung().get("Catalog", "testbaum").status)

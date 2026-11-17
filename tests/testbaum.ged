@@ -11,6 +11,7 @@
 2 DATE 1 MAR 1900
 1 DEAT
 2 DATE 5 MAY 1970
+2 CAUS Markertodesursache
 1 FAMS @F1@
 0 @I2@ INDI
 1 NAME Maria /Gesund/
@@ -105,6 +106,7 @@
 2 RESN confidential
 1 DEAT
 2 DATE 2000
+2 CAUS markerfremd
 0 @I13@ INDI
 1 NAME Adoptiert /Gesund/
 1 SEX F

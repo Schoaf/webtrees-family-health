@@ -13,6 +13,8 @@
 - Family health history for the doctor: for your own individual or a child under 18, the relatives' illnesses by
   category with relationship, degree, ICD-10 code and age at diagnosis; early onset marked (age set in the settings);
   filter by category; print view. The same as JSON `FamilyHistory/{tree}` for apps.
+- The cause of death (`1 DEAT / 2 CAUS`) counts as an illness at the date of death, once if it is recorded as an
+  illness too; its category comes from the catalog like any other.
 - Release workflow: a tag `v<version>` runs the tests, builds `family-health-<version>.zip` and publishes the release.
 
 ## 0.1.0

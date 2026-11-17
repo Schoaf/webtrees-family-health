@@ -15,10 +15,12 @@ use Fisharebest\Webtrees\Site;
 use Fisharebest\Webtrees\Tree;
 
 use function array_chunk;
+use function array_map;
 use function array_keys;
 use function explode;
 use function in_array;
 use function mb_strlen;
+use function mb_strtolower;
 use function min;
 use function preg_match;
 use function preg_match_all;
@@ -29,8 +31,8 @@ use function trim;
 use const PREG_SET_ORDER;
 
 /**
- * The illnesses a user may see: facts "1 FACT <illness> / 2 TYPE Erkrankung" of their blood relatives and of the
- * blood relatives of their children under 18. The rule holds for every role, admins too - who has no individual
+ * The illnesses a user may see: facts "1 FACT <illness> / 2 TYPE Erkrankung" and causes of death (1 DEAT / 2 CAUS) of
+ * their blood relatives and of the blood relatives of their children under 18. The rule holds for every role, admins too - who has no individual
  * linked to their account sees none.
  *
  * Read from the accepted records, past webtrees' own privacy (the facts carry RESN confidential): this rule replaces
@@ -232,12 +234,37 @@ final class Illnesses
 
         foreach ($facts as $fact) {
             if (preg_match('/\n2 TYPE (.*)/', $fact[2], $type) === 1 && preg_match(self::ILLNESS_TYPE, trim($type[1])) === 1) {
-                // GEDCOM doubles an @ in text.
-                $date    = preg_match('/\n2 DATE (.*)/', $fact[2], $match) === 1 ? str_replace('@@', '@', trim($match[1])) : '';
-                $found[] = [str_replace('@@', '@', trim($fact[1])), $date];
+                $found[] = [self::text($fact[1]), self::date($fact[2])];
+            }
+        }
+
+        // The cause of death counts as an illness at the date of death - once, if it is not recorded as one already.
+        preg_match_all('/\n1 DEAT\b.*((?:\n[2-9] .*)*)/', $gedcom, $deaths, PREG_SET_ORDER);
+
+        foreach ($deaths as $death) {
+            if (preg_match('/\n2 CAUS (.*)/', $death[1], $cause) !== 1 || trim($cause[1]) === '') {
+                continue;
+            }
+
+            $name  = self::text($cause[1]);
+            $names = array_map(static fn (array $illness): string => mb_strtolower($illness[0]), $found);
+
+            if (!in_array(mb_strtolower($name), $names, true)) {
+                $found[] = [$name, self::date($death[1])];
             }
         }
 
         return $found;
+    }
+
+    // GEDCOM doubles an @ in text.
+    private static function text(string $value): string
+    {
+        return str_replace('@@', '@', trim($value));
+    }
+
+    private static function date(string $lines): string
+    {
+        return preg_match('/\n2 DATE (.*)/', $lines, $match) === 1 ? self::text($match[1]) : '';
     }
 }
