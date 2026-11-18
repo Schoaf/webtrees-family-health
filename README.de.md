@@ -87,6 +87,16 @@ veröffentlicht das Release mit dem Abschnitt aus dem Changelog als Text.
 `python3 tests/test_modul.py` baut ein frisches webtrees 2.2.6 mit SQLite unter `php -S` auf (nur 127.0.0.1) und
 testet dagegen.
 
+## Buy me a bagel 🥯
+
+Die Arbeit an diesem Projekt kostet Zeit und Geld. Wenn du das Projekt unterstützen möchtest, lad mich auf einen Bagel ein: Scanne den QR-Code mit deiner Banking-App.
+
+<img src="docs/buy-me-a-bagel.png" alt="QR-Code für eine SEPA-Überweisung über 5 Euro" width="200">
+
+Andreas Scharf · IBAN DE59 1001 1001 2074 1651 75 · BIC NTSBDEB1XXX
+
+Danke, und guten Appetit mir! 🙂
+
 ## Lizenz
 
 GPL-3.0, wie webtrees.

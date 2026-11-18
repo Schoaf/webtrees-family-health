@@ -90,6 +90,14 @@ release with the changelog section as notes.
 `python3 tests/test_modul.py` sets up a fresh webtrees 2.2.6 with SQLite under `php -S` (127.0.0.1 only) and tests
 against it.
 
+## Buy me a bagel 🥯
+
+Working on this project takes time and money. If you'd like to support it, buy me a bagel: scan the QR code with your banking app.
+
+<img src="docs/buy-me-a-bagel.png" alt="QR code for a SEPA transfer of 5 euros" width="200">
+
+Andreas Scharf · IBAN DE59 1001 1001 2074 1651 75 · BIC NTSBDEB1XXX
+
 ## Licence
 
 GPL-3.0, like webtrees.
