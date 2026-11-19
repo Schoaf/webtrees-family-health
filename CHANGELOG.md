@@ -18,6 +18,8 @@
 - New illnesses get `2 TYPE Illness` in every language (webtrees shows it translated); *Erkrankung* and *Krankheit*
   are still read.
 - *Add a fact* → *Illness* on an individual's page opens the module's form for that individual.
+- The date of diagnosis uses webtrees' date field: it converts `12.3.1975`, has the calendar and the help on the
+  date format.
 - Release workflow: a tag `v<version>` runs the tests, builds `family-health-<version>.zip` and publishes the release.
 
 ## 0.1.0

@@ -189,6 +189,12 @@ class ModulTest(unittest.TestCase):
         fehler = anna.formular("Add", {"xref": "I8", "illness": "", "from": "individual"}, "testbaum")
         self.assertIn("Record", fehler.umleitung)
 
+    def test_datumsfeld_von_webtrees(self):
+        # Das Datum hat das Feld von webtrees: wandelt 12.3.1975 um, mit Kalender und Hilfe zum Format
+        formular = U.sitzung("bearbeiter").get("Record", "testbaum", xref="I8").text
+        self.assertIn("webtrees.reformatDate(", formular)
+        self.assertIn('id="caldivdate"', formular)
+
     def test_eintragen_abgelehnt(self):
         mitglied = U.sitzung("mitglied")
         self.assertNotIn('name="illness"', mitglied.get("List", "testbaum").text)

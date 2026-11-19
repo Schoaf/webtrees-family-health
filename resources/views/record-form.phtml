@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Individual;
+use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Tree;
 
 /**
@@ -60,7 +61,7 @@ use Fisharebest\Webtrees\Tree;
     <div class="row mb-2">
         <label class="col-sm-3 col-form-label" for="date"><?= I18N::translate('Date of diagnosis') ?></label>
         <div class="col-sm-9">
-            <input class="form-control" id="date" name="date" dir="ltr" placeholder="ABT 1975">
+            <?= Registry::elementFactory()->make('INDI:FACT:DATE')->edit('date', 'date', '', $tree) ?>
         </div>
     </div>
     <p class="form-text"><?= I18N::translate('Only blood relatives of the individual will see it – you, too, only if you are one of them.') ?></p>
