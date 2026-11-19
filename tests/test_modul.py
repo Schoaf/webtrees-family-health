@@ -195,6 +195,12 @@ class ModulTest(unittest.TestCase):
         self.assertIn("webtrees.reformatDate(", formular)
         self.assertIn('id="caldivdate"', formular)
 
+    def test_menue_icon(self):
+        # Der Menuepunkt hat eine eigene Klasse und ein Icon in den Themes mit Icons
+        seite = U.sitzung("mitglied").get("List", "testbaum").text
+        self.assertIn("menu-list-family-health", seite)
+        self.assertIn(".wt-theme-webtrees .menu-list-family-health:before{content:url(", seite)
+
     def test_eintragen_abgelehnt(self):
         mitglied = U.sitzung("mitglied")
         self.assertNotIn('name="illness"', mitglied.get("List", "testbaum").text)

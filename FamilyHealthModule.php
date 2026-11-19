@@ -19,6 +19,8 @@ use Fisharebest\Webtrees\Module\ModuleConfigInterface;
 use Fisharebest\Webtrees\Module\ModuleConfigTrait;
 use Fisharebest\Webtrees\Module\ModuleCustomInterface;
 use Fisharebest\Webtrees\Module\ModuleCustomTrait;
+use Fisharebest\Webtrees\Module\ModuleGlobalInterface;
+use Fisharebest\Webtrees\Module\ModuleGlobalTrait;
 use Fisharebest\Webtrees\Module\ModuleListInterface;
 use Fisharebest\Webtrees\Module\ModuleListTrait;
 use Fisharebest\Webtrees\Registry;
@@ -33,6 +35,7 @@ use function array_column;
 use function array_flip;
 use function array_unique;
 use function array_values;
+use function base64_encode;
 use function array_map;
 use function explode;
 use function in_array;
@@ -45,6 +48,7 @@ use function range;
 use function redirect;
 use function response;
 use function route;
+use function sprintf;
 use function str_starts_with;
 use function strip_tags;
 use function usort;
@@ -58,10 +62,11 @@ use function usort;
  *
  * All pages and endpoints use webtrees' module route /module/_family-health_/<Action>[/<tree>].
  */
-class FamilyHealthModule extends AbstractModule implements ModuleCustomInterface, ModuleConfigInterface, ModuleListInterface
+class FamilyHealthModule extends AbstractModule implements ModuleCustomInterface, ModuleConfigInterface, ModuleGlobalInterface, ModuleListInterface
 {
     use ModuleConfigTrait;
     use ModuleCustomTrait;
+    use ModuleGlobalTrait;
     use ModuleListTrait;
 
     // The entry "Illness" in webtrees' list "Add a fact". It only opens the module's form and never reaches the tree:
@@ -160,6 +165,31 @@ class FamilyHealthModule extends AbstractModule implements ModuleCustomInterface
     public function resourcesFolder(): string
     {
         return __DIR__ . '/resources/';
+    }
+
+    // The icon of the menu item: a heart with a pulse line, in the size of the theme's own icons. The themes fab and minimal
+    // show no icons in the menus, so neither does this one.
+    private const string MENU_CLASS = 'menu-list-family-health';
+    private const string ICON = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="%1$d" height="%1$d">'
+        . '<path fill="#d9534f" d="M12 21s-8.5-5.3-8.5-11.2C3.5 6.6 5.8 4.5 8.4 4.5c1.6 0 2.9.8 3.6 2 .7-1.2 2-2 3.6-2 2.6 0 4.9 2.1 4.9 5.3C20.5 15.7 12 21 12 21z"/>'
+        . '<path fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="M5 11.5h3.5l1.5-3 2.5 6 1.5-3H19"/>'
+        . '</svg>';
+    private const array ICON_SIZE_BY_THEME = ['webtrees' => 24, 'clouds' => 22, 'colors' => 22, 'xenea' => 22];
+
+    public function listMenuClass(): string
+    {
+        return self::MENU_CLASS;
+    }
+
+    public function headContent(): string
+    {
+        $css = '';
+        foreach (self::ICON_SIZE_BY_THEME as $theme => $size) {
+            $svg = sprintf(self::ICON, $size);
+            $css .= '.wt-theme-' . $theme . ' .' . self::MENU_CLASS . ':before{content:url("data:image/svg+xml;base64,' . base64_encode($svg) . '")}';
+        }
+
+        return '<style>' . $css . '</style>';
     }
 
     /**
