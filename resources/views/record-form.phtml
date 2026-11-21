@@ -67,3 +67,6 @@ use Fisharebest\Webtrees\Tree;
     <p class="form-text"><?= I18N::translate('Only blood relatives of the individual will see it – you, too, only if you are one of them.') ?></p>
     <button type="submit" class="btn btn-primary"><?= I18N::translate('save') ?></button>
 </form>
+
+<?php // The help button of the date field opens its text in this dialog. ?>
+<?= view('modals/ajax') ?>

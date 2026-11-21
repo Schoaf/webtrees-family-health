@@ -194,6 +194,9 @@ class ModulTest(unittest.TestCase):
         formular = U.sitzung("bearbeiter").get("Record", "testbaum", xref="I8").text
         self.assertIn("webtrees.reformatDate(", formular)
         self.assertIn('id="caldivdate"', formular)
+        # Der Hilfe-Knopf braucht den Dialog von webtrees auf der Seite
+        self.assertIn('id="wt-ajax-modal"', formular)
+        self.assertIn('id="wt-ajax-modal"', U.sitzung("bearbeiter").get("List", "testbaum").text)
 
     def test_menue_icon(self):
         # Der Menuepunkt hat eine eigene Klasse und ein Icon in den Themes mit Icons
