@@ -52,7 +52,8 @@ the illnesses of a deleted category go to *other*, which stays.
 
 The catalog starts with about 40 common illnesses in the site's language (German or English) and is edited in the
 module's settings, which also list names used in a tree but missing from the catalog. Renaming a name there offers to
-rename it for every individual who has it as well – with their number and a link to the search. JSON `Catalog/{tree}` gives apps
+rename it for every individual who has it as well. The catalog is one alphabetical list, sortable by each column,
+with the number of individuals per name – a link to exactly those individuals. JSON `Catalog/{tree}` gives apps
 the categories and the catalog, as suggestions when entering an illness. It holds only names, never who has them.
 
 ## Recording an illness

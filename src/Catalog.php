@@ -269,9 +269,9 @@ final class Catalog
     }
 
     /**
-     * How many individuals carry each illness name, per tree - so a name can be renamed for all of them.
+     * Who carries each illness name, per tree - to count them, list them and rename a name for all of them.
      *
-     * @return array<string,array<string,int>> lower-case name => tree name => individuals
+     * @return array<string,array<string,list<string>>> lower-case name => tree name => individuals
      */
     public function usage(): array
     {
@@ -280,12 +280,12 @@ final class Catalog
         foreach (DB::table('individuals')
             ->join('gedcom', 'gedcom_id', '=', 'i_file')
             ->where(static fn ($query) => $query->where('i_gedcom', 'LIKE', '%1 FACT %')->orWhere('i_gedcom', 'LIKE', '%2 CAUS %'))
-            ->select(['gedcom_name', 'i_gedcom'])
+            ->select(['gedcom_name', 'i_id', 'i_gedcom'])
             ->get() as $row) {
             $names = array_unique(array_map(static fn (array $illness): string => mb_strtolower($illness[0]), Illnesses::illnessesIn((string) $row->i_gedcom)));
 
             foreach ($names as $name) {
-                $usage[$name][(string) $row->gedcom_name] = ($usage[$name][(string) $row->gedcom_name] ?? 0) + 1;
+                $usage[$name][(string) $row->gedcom_name][] = (string) $row->i_id;
             }
         }
 

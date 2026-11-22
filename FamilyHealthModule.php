@@ -13,7 +13,6 @@ use Fisharebest\Webtrees\FlashMessages;
 use Fisharebest\Webtrees\Http\Exceptions\HttpAccessDeniedException;
 use Fisharebest\Webtrees\Http\Exceptions\HttpNotFoundException;
 use Fisharebest\Webtrees\Http\RequestHandlers\AddNewFact;
-use Fisharebest\Webtrees\Http\RequestHandlers\SearchGeneralPage;
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Individual;
 use Fisharebest\Webtrees\Module\AbstractModule;
@@ -42,6 +41,7 @@ use function array_values;
 use function addcslashes;
 use function array_sum;
 use function base64_encode;
+use function count;
 use function array_map;
 use function explode;
 use function in_array;
@@ -50,6 +50,7 @@ use function is_bool;
 use function is_file;
 use function is_string;
 use function json_decode;
+use function mb_strtolower;
 use function preg_match;
 use function range;
 use function redirect;
@@ -794,40 +795,69 @@ class FamilyHealthModule extends AbstractModule implements ModuleCustomInterface
             'catalog'    => $this->catalog()->entries(),
             'missing'    => $this->catalog()->namesNotInCatalog(),
             'max_length' => Catalog::NAME_MAX_LENGTH,
-            'usage'      => $this->usageWithLinks(),
+            'usage'      => $this->usageCounts(),
             'category_max_length' => Catalog::CATEGORY_MAX_LENGTH,
             'fallback_category'   => Catalog::FALLBACK_CATEGORY,
         ]);
     }
 
     /**
-     * Who carries each illness name: the number of individuals and, per tree, a link to webtrees' search for it.
+     * How many individuals carry each illness name, with a link to the page that lists them.
      *
-     * @return array<string,array{count:int,links:list<array{tree:string,url:string}>}> lower-case name => usage
+     * @return array<string,array{count:int,url:string}> lower-case name => usage
      */
-    private function usageWithLinks(): array
+    private function usageCounts(): array
     {
-        $trees = Registry::container()->get(TreeService::class)->all();
         $usage = [];
 
         foreach ($this->catalog()->usage() as $name => $per_tree) {
-            $links = [];
-
-            foreach ($per_tree as $tree_name => $count) {
-                $tree = $trees->get($tree_name);
-
-                if ($tree instanceof Tree) {
-                    $links[] = [
-                        'tree' => $tree->title() . ' (' . I18N::number($count) . ')',
-                        'url'  => route(SearchGeneralPage::class, ['tree' => $tree->name(), 'query' => '"' . $name . '"', 'search_individuals' => '1']),
-                    ];
-                }
-            }
-
-            $usage[$name] = ['count' => array_sum($per_tree), 'links' => $links];
+            $usage[$name] = [
+                'count' => array_sum(array_map(count(...), $per_tree)),
+                'url'   => route('module', ['module' => $this->name(), 'action' => 'AdminIllness', 'name' => $name]),
+            ];
         }
 
         return $usage;
+    }
+
+    /**
+     * The individuals who have one illness (?name=, in any case), by tree - from the catalog's count. Administrators.
+     */
+    public function getAdminIllnessAction(ServerRequestInterface $request): ResponseInterface
+    {
+        $this->layout = 'layouts/administration';
+
+        $name   = Validator::queryParams($request)->string('name', '');
+        $trees  = Registry::container()->get(TreeService::class)->all();
+        $groups = [];
+
+        foreach ($this->catalog()->usage()[mb_strtolower(trim($name))] ?? [] as $tree_name => $xrefs) {
+            $tree = $trees->get($tree_name);
+
+            if (!$tree instanceof Tree) {
+                continue;
+            }
+
+            $individuals = [];
+
+            foreach ($xrefs as $xref) {
+                $individual = Registry::individualFactory()->make($xref, $tree);
+
+                if ($individual !== null) {
+                    $individuals[] = $individual;
+                }
+            }
+
+            usort($individuals, static fn (Individual $x, Individual $y): int => I18N::comparator()($x->sortName(), $y->sortName()));
+            $groups[] = ['tree' => $tree, 'individuals' => $individuals];
+        }
+
+        return $this->viewResponse($this->name() . '::admin-illness', [
+            'title'        => $name,
+            'module_title' => $this->title(),
+            'groups'       => $groups,
+            'back_url'     => $this->getConfigLink(),
+        ]);
     }
 
     public function postAdminAction(ServerRequestInterface $request): ResponseInterface

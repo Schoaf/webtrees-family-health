@@ -4,7 +4,9 @@
 Kern ist der Leck-Test: jede Erkrankung in testbaum.ged traegt ein Markerwort. Jedes Konto ruft Seite und JSON ab -
 genau die Marker seiner Blutsverwandten (und der seiner minderjaehrigen Kinder) duerfen darin stehen, kein anderer.
 """
+import re
 import sys
+import unicodedata
 import unittest
 
 import umgebung
@@ -135,8 +137,21 @@ class ModulTest(unittest.TestCase):
         # Namen in Gebrauch: Anzahl Personen und Link in die Suche fuer den Dialog
         seite = admin.get("Admin").text
         self.assertIn('data-original="Markermutter" data-count="1"', seite)
-        self.assertIn("search-general", seite)
-        self.assertIn("search_individuals", seite)
+        # ...und als Zahl, die auf genau diese Personen fuehrt (nur fuer Admins)
+        self.assertIn("AdminIllness", seite)
+        self.assertIn('data-sort="1"', seite)
+        personen = admin.get("AdminIllness", name="markermutter")
+        self.assertEqual(200, personen.status)
+        self.assertIn("Maria", personen.text)
+        self.assertNotIn("Theodor", personen.text)
+        self.assertNotEqual(200, U.sitzung("verwalter").get("AdminIllness", name="markermutter").status)
+        self.assertIn("Niemand hat diese Erkrankung.", admin.get("AdminIllness", name="gibtsnicht").text)
+        # Eine Liste, alphabetisch - die Namen ohne Katalogeintrag markiert dazwischen
+        zeilen = re.findall(r'<tr( class="table-warning")?><td><input type="hidden" name="entries\[\d+\]\[original\]" value="([^"]*)"', seite)
+        namen = [name for _, name in zeilen]
+        ohne_akzent = lambda n: "".join(z for z in unicodedata.normalize("NFKD", n.lower()) if not unicodedata.combining(z))
+        self.assertEqual(sorted(namen, key=ohne_akzent), namen)
+        self.assertIn((' class="table-warning"', "Markermutter"), zeilen)
 
         # Nur im Katalog: die Personen behalten den alten Namen
         nur_katalog = {"catalog_form": "1", "max_degree": "0", "rename_individuals": "0",

@@ -19,10 +19,11 @@ use Fisharebest\Webtrees\View;
  * @var int                                             $max_length
  * @var int                                             $category_max_length
  * @var string                                          $fallback_category
- * @var array<string,array{count:int,links:list<array{tree:string,url:string}>}> $usage
+ * @var array<string,array{count:int,url:string}>       $usage
  */
 
-// One row of the catalog table: name, category, ICD-10 code, delete.
+// One row of the catalog table: name, category, ICD-10 code, individuals, delete. A name used in a tree but not in
+// the catalog yet is marked.
 $row = static function (int $i, string $name, string $category, string $icd, bool $is_new) use ($categories, $max_length, $usage): string {
     // A new row may stay without category - then it is not added.
     $options = $is_new ? '<option value=""></option>' : '';
@@ -34,17 +35,32 @@ $row = static function (int $i, string $name, string $category, string $icd, boo
     // A name already in use remembers what it was, so renaming it can rename it for the individuals as well.
     $used     = $usage[mb_strtolower($name)] ?? null;
     $original = $name === '' ? '' : '<input type="hidden" name="entries[' . $i . '][original]" value="' . e($name) . '">';
-    $data     = $used === null ? '' : ' data-original="' . e($name) . '" data-count="' . $used['count'] . '" data-links="' . e((string) json_encode($used['links'])) . '"';
+    $data     = $used === null ? '' : ' data-original="' . e($name) . '" data-count="' . $used['count'] . '" data-url="' . e($used['url']) . '"';
+    $count    = $used === null ? '0' : '<a href="' . e($used['url']) . '">' . I18N::number($used['count']) . '</a>';
 
-    return '<tr>'
+    return '<tr' . ($is_new && $name !== '' ? ' class="table-warning"' : '') . '>'
         . '<td>' . $original . '<input class="form-control form-control-sm" name="entries[' . $i . '][name]" value="' . e($name) . '" maxlength="' . $max_length . '"' . $data . '></td>'
         . '<td><select class="form-select form-select-sm" name="entries[' . $i . '][category]">' . $options . '</select></td>'
         . '<td><input class="form-control form-control-sm" name="entries[' . $i . '][icd]" value="' . e($icd) . '" size="7" pattern="[A-Za-z][0-9]{2}(\.[0-9A-Za-z]{1,4})?"></td>'
+        . '<td class="text-end" data-sort="' . ($used['count'] ?? 0) . '">' . ($name === '' ? '' : $count) . '</td>'
         . '<td>' . ($is_new ? '' : '<input class="form-check-input" type="checkbox" name="entries[' . $i . '][delete]" value="1" aria-label="' . e(I18N::translate('Delete')) . '">') . '</td>'
         . '</tr>';
 };
 
 $i = 0;
+
+// All names in one list, alphabetical - the ones not in the catalog yet among them.
+$rows = [];
+
+foreach ($missing as $name) {
+    $rows[] = [$name, '', '', true];
+}
+
+foreach ($catalog as $name => $entry) {
+    $rows[] = [$name, $entry['category'], $entry['icd'], false];
+}
+
+usort($rows, static fn (array $x, array $y): int => I18N::comparator()($x[0], $y[0]));
 
 ?>
 
@@ -118,24 +134,23 @@ $i = 0;
     <p class="form-text"><?= I18N::translate('Each illness name with its category and, if you like, its ICD-10 code. The names are suggested when entering an illness, so the same illness is always spelled the same way.') ?></p>
 
     <?php if ($missing !== []) : ?>
-        <div class="alert alert-warning"><?= I18N::translate('These names are used in a family tree but are not in the catalog yet. Choose a category to add them.') ?></div>
+        <div class="alert alert-warning"><?= I18N::translate('The marked names are used in a family tree but are not in the catalog yet. Choose a category to add them.') ?></div>
     <?php endif ?>
 
-    <table class="table table-sm align-middle">
+    <table class="table table-sm align-middle" id="family-health-catalog-table">
         <thead>
             <tr>
-                <th><?= I18N::translate('Illness') ?></th>
-                <th><?= I18N::translate('Category') ?></th>
-                <th><?= I18N::translate('ICD-10') ?></th>
+                <?php foreach ([I18N::translate('Illness'), I18N::translate('Category'), I18N::translate('ICD-10'), I18N::translate('Individuals')] as $column => $heading) : ?>
+                    <th aria-sort="<?= $column === 0 ? 'ascending' : 'none' ?>"<?= $column === 3 ? ' class="text-end"' : '' ?>>
+                        <button type="button" class="btn btn-link p-0 fw-bold text-decoration-none" data-sort-column="<?= $column ?>"><?= $heading ?> <span aria-hidden="true"><?= $column === 0 ? '▲' : '' ?></span></button>
+                    </th>
+                <?php endforeach ?>
                 <th><?= I18N::translate('Delete') ?></th>
             </tr>
         </thead>
         <tbody>
-            <?php foreach ($missing as $name) : ?>
-                <?= $row($i++, $name, '', '', true) ?>
-            <?php endforeach ?>
-            <?php foreach ($catalog as $name => $entry) : ?>
-                <?= $row($i++, $name, $entry['category'], $entry['icd'], false) ?>
+            <?php foreach ($rows as [$name, $category, $icd, $is_new]) : ?>
+                <?= $row($i++, $name, $category, $icd, $is_new) ?>
             <?php endforeach ?>
             <?= $row($i++, '', '', '', true) ?>
         </tbody>
@@ -145,7 +160,7 @@ $i = 0;
 </form>
 
 <dialog id="family-health-rename-dialog" class="border rounded shadow p-4" style="max-width: 40rem;"
-        data-individuals="<?= e(I18N::translate('individuals: %s', '%s')) ?>" data-search="<?= e(I18N::translate('Show in the search')) ?>">
+        data-individuals="<?= e(I18N::translate('individuals: %s', '%s')) ?>" data-show="<?= e(I18N::translate('Show the individuals')) ?>">
     <h2 class="h5"><?= I18N::translate('Rename these illnesses for all individuals as well?') ?></h2>
     <ul id="family-health-rename-list"></ul>
     <p class="form-text"><?= I18N::translate('Otherwise only the catalog changes, and the individuals keep the old name – without a category.') ?></p>
@@ -182,17 +197,12 @@ $i = 0;
         event.preventDefault();
         list.replaceChildren(...renames.map((input) => {
             const item = document.createElement('li');
-            const links = JSON.parse(input.dataset.links);
+            const anchor = document.createElement('a');
 
-            item.append('„' + input.dataset.original + '“ → „' + input.value.trim() + '“ – ' + dialog.dataset.individuals.replace('%s', input.dataset.count));
-            links.forEach((link) => {
-                const anchor = document.createElement('a');
-
-                anchor.href = link.url;
-                anchor.target = '_blank';
-                anchor.textContent = dialog.dataset.search + (links.length > 1 ? ': ' + link.tree : '');
-                item.append(' · ', anchor);
-            });
+            anchor.href = input.dataset.url;
+            anchor.target = '_blank';
+            anchor.textContent = dialog.dataset.show;
+            item.append('„' + input.dataset.original + '“ → „' + input.value.trim() + '“ – ' + dialog.dataset.individuals.replace('%s', input.dataset.count) + ' · ', anchor);
 
             return item;
         }));
@@ -207,6 +217,45 @@ $i = 0;
             isConfirmed = true;
             form.requestSubmit();
         }
+    }));
+
+    // Sort the catalog by a column; the empty row for a new name stays last.
+    const table = document.getElementById('family-health-catalog-table');
+    const body = table.tBodies[0];
+    const collator = new Intl.Collator(document.documentElement.lang || undefined, {numeric: true, sensitivity: 'base'});
+    const value = (row, column) => {
+        const cell = row.cells[column];
+        const select = cell.querySelector('select');
+
+        if (column === 3) {
+            return Number(cell.dataset.sort);
+        }
+
+        return select ? select.options[select.selectedIndex]?.text ?? '' : cell.querySelector('input:not([type=hidden])')?.value ?? '';
+    };
+
+    table.querySelectorAll('[data-sort-column]').forEach((button) => button.addEventListener('click', () => {
+        const column = Number(button.dataset.sortColumn);
+        const heading = button.closest('th');
+        const isAscending = heading.getAttribute('aria-sort') !== 'ascending';
+        const rows = [...body.rows];
+        const last = rows.pop();
+
+        rows.sort((x, y) => {
+            const a = value(x, column);
+            const b = value(y, column);
+            const order = typeof a === 'number' ? a - b : collator.compare(a, b);
+
+            return (isAscending ? order : -order) || collator.compare(value(x, 0), value(y, 0));
+        });
+        body.replaceChildren(...rows, last);
+
+        table.querySelectorAll('th[aria-sort]').forEach((th) => {
+            th.setAttribute('aria-sort', 'none');
+            th.querySelector('span').textContent = '';
+        });
+        heading.setAttribute('aria-sort', isAscending ? 'ascending' : 'descending');
+        heading.querySelector('span').textContent = isAscending ? '▲' : '▼';
     }));
 })();
 </script>
