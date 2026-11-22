@@ -34,6 +34,14 @@ Nichten, Neffen und Halbgeschwister 2., Cousins und Cousinen 3. Adoptiv- und Pfl
 nicht. Die Regel gilt auch für Admins; ein Konto ohne zugeordnete Person sieht keine. Auf Wunsch begrenzt auf einen
 Verwandtschaftsgrad (Verwaltung → Module → Familiengesundheit).
 
+### Nicht teilnehmen
+
+Jede Person kann sich herausnehmen lassen: Dann sieht niemand ihre Erkrankungen – kein Verwandter, nicht sie selbst,
+kein Admin – und es lassen sich keine für sie eintragen. Für sich und die eigenen Kinder unter 18 entscheidet man auf
+der Seite *Familiengesundheit*; ein Verwalter des Stammbaums kann dort jede Person herausnehmen, etwa wenn jemand per
+E-Mail darum bittet. Die Fakten bleiben im Stammbaum und erscheinen wieder, sobald die Person wieder teilnimmt.
+webtrees selbst zeigt Verwaltern die vertraulichen Fakten auf der Personenseite weiterhin.
+
 ## Katalog und Kategorien
 
 Jede Erkrankung hat eine Kategorie und auf Wunsch einen ICD-10-Code – am Namen, nicht an jedem Eintrag, damit sie

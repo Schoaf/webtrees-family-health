@@ -40,6 +40,7 @@ use function array_map;
 use function explode;
 use function in_array;
 use function is_array;
+use function is_bool;
 use function is_file;
 use function is_string;
 use function json_decode;
@@ -207,6 +208,7 @@ class FamilyHealthModule extends AbstractModule implements ModuleCustomInterface
             'tree'       => $tree,
             'is_linked'  => $tree->getUserPreference($user, UserInterface::PREF_TREE_ACCOUNT_XREF) !== '',
             'illnesses'  => Illnesses::visibleTo($tree, $user, $this->maxDegree(), $this->catalog()),
+            'opted_out'  => $this->individualsWithDegree($tree, Illnesses::optedOutRelatives($tree, $user, $this->maxDegree())),
             'can_add'    => Auth::isEditor($tree, $user),
             'own'        => Registry::individualFactory()->make($tree->getUserPreference($user, UserInterface::PREF_TREE_ACCOUNT_XREF), $tree),
             'catalog'    => $this->catalog()->entries(),
@@ -214,7 +216,119 @@ class FamilyHealthModule extends AbstractModule implements ModuleCustomInterface
             'categories' => Catalog::categoryNames(),
             'history_url' => $this->historyUrl($tree, ''),
             'module_name' => $this->name(),
+            'participation' => $this->participation($tree, $user),
+            'participation_url' => route('module', ['module' => $this->name(), 'action' => 'ParticipationForm', 'tree' => $tree->name()]),
         ]);
+    }
+
+    /**
+     * Take part or not - the form on the page "Family health". For the user's own individual and children under 18,
+     * a manager for anyone.
+     */
+    public function postParticipationFormAction(ServerRequestInterface $request): ResponseInterface
+    {
+        $tree = Validator::attributes($request)->tree();
+        $user = Validator::attributes($request)->user();
+        $body = Validator::parsedBody($request);
+
+        Auth::checkComponentAccess($this, ModuleListInterface::class, $tree, $user);
+
+        $error = $this->setParticipation($tree, $user, $body->string('xref', ''), $body->string('opt_out', '') === '1');
+
+        FlashMessages::addMessage($error ?? I18N::translate('Your choice has been saved.'), $error === null ? 'success' : 'danger');
+
+        return redirect($this->listUrl($tree));
+    }
+
+    /**
+     * JSON for apps: who the user decides for. {"subjects": [{xref, name, isOptedOut}], "canManage", "optedOut":
+     * [{xref, name}]} - optedOut only for a manager, empty otherwise.
+     */
+    public function getParticipationAction(ServerRequestInterface $request): ResponseInterface
+    {
+        $tree = Validator::attributes($request)->tree();
+        $user = Validator::attributes($request)->user();
+
+        Auth::checkComponentAccess($this, ModuleListInterface::class, $tree, $user);
+
+        $participation = $this->participation($tree, $user);
+        $json          = static fn (Individual $individual): array => ['xref' => $individual->xref(), 'name' => strip_tags($individual->fullName())];
+
+        return response([
+            'subjects'  => array_map(static fn (array $entry): array => $json($entry['individual']) + ['isOptedOut' => $entry['is_opted_out']], $participation['subjects']),
+            'canManage' => $participation['can_manage'],
+            'optedOut'  => array_map($json, $participation['opted_out']),
+        ]);
+    }
+
+    /**
+     * JSON for apps: take part or not - {"xref", "isOptedOut": true|false}. Answers {"ok": true} or 400 with error.
+     */
+    public function postParticipationAction(ServerRequestInterface $request): ResponseInterface
+    {
+        $tree = Validator::attributes($request)->tree();
+        $user = Validator::attributes($request)->user();
+        $body = json_decode((string) $request->getBody(), true);
+        $xref = is_array($body) && is_string($body['xref'] ?? null) ? $body['xref'] : '';
+
+        Auth::checkComponentAccess($this, ModuleListInterface::class, $tree, $user);
+
+        $error = is_array($body) && is_bool($body['isOptedOut'] ?? null)
+            ? $this->setParticipation($tree, $user, $xref, $body['isOptedOut'])
+            : I18N::translate('Choose an individual.');
+
+        return response($error === null ? ['ok' => true] : ['ok' => false, 'error' => $error], $error === null ? 200 : 400);
+    }
+
+    /**
+     * @return string|null what is wrong - null when saved
+     */
+    private function setParticipation(Tree $tree, UserInterface $user, string $xref, bool $is_opted_out): string|null
+    {
+        $individual = Registry::individualFactory()->make($xref, $tree);
+
+        if ($individual === null || !$individual->canShowName()) {
+            return I18N::translate('Choose an individual.');
+        }
+
+        if (!Participation::maySet($tree, $user, $individual->xref())) {
+            return I18N::translate('You may not change this individual.');
+        }
+
+        Participation::set($tree, $individual->xref(), $is_opted_out);
+
+        return null;
+    }
+
+    /**
+     * Who the user decides for and, for a manager, everyone who does not take part.
+     *
+     * @return array{subjects:list<array{individual:Individual,is_opted_out:bool}>,can_manage:bool,opted_out:list<Individual>}
+     */
+    private function participation(Tree $tree, UserInterface $user): array
+    {
+        $subjects = [];
+
+        foreach (Illnesses::subjects($tree, $user) as $xref) {
+            $individual = Registry::individualFactory()->make($xref, $tree);
+
+            if ($individual !== null && $individual->canShowName()) {
+                $subjects[] = ['individual' => $individual, 'is_opted_out' => Participation::isOptedOut($tree, $xref)];
+            }
+        }
+
+        $can_manage = Auth::isManager($tree, $user);
+        $opted_out  = [];
+
+        foreach ($can_manage ? Participation::optedOut($tree) : [] as $xref) {
+            $individual = Registry::individualFactory()->make($xref, $tree);
+
+            if ($individual !== null) {
+                $opted_out[] = $individual;
+            }
+        }
+
+        return ['subjects' => $subjects, 'can_manage' => $can_manage, 'opted_out' => $opted_out];
     }
 
     /**
@@ -276,6 +390,7 @@ class FamilyHealthModule extends AbstractModule implements ModuleCustomInterface
             'category'     => $category,
             'categories'   => Catalog::categoryNames(),
             'early_age'    => $this->earlyAge(),
+            'opted_out'    => $history['opted_out'],
             'url'          => fn (string $xref, string $category): string => $this->historyUrl($tree, $xref, $category),
             'relationship' => Registry::container()->get(RelationshipService::class),
             'list_url'     => $this->listUrl($tree),
@@ -316,11 +431,24 @@ class FamilyHealthModule extends AbstractModule implements ModuleCustomInterface
             $subjects[] = ['xref' => $xref, 'name' => strip_tags($individual->fullName())];
         }
 
+        $opted_out = [];
+
+        foreach ($history['opted_out'] as $entry) {
+            $opted_out[] = [
+                'xref'         => $entry['individual']->xref(),
+                'name'         => strip_tags($entry['individual']->fullName()),
+                'relationship' => $subject === null ? '' : strip_tags($relationship->getCloseRelationshipName($subject, $entry['individual'])),
+                'degree'       => $entry['degree'],
+            ];
+        }
+
         return response([
             'subjects'  => $subjects,
             'xref'      => $subject?->xref(),
             'earlyAge'  => $this->earlyAge(),
             'illnesses' => $illnesses,
+            // Relatives who do not take part: their illnesses are not known here.
+            'optedOut'  => $opted_out,
         ]);
     }
 
@@ -329,7 +457,7 @@ class FamilyHealthModule extends AbstractModule implements ModuleCustomInterface
      * relatives' illnesses (with age at diagnosis and early onset), sorted by category, degree and name. A 404 for
      * an individual that is not one of the user's own.
      *
-     * @return array{subjects:array<string,Individual>,subject:Individual|null,entries:list<array<string,mixed>>}
+     * @return array{subjects:array<string,Individual>,subject:Individual|null,entries:list<array<string,mixed>>,opted_out:list<array{individual:Individual,degree:int}>}
      */
     private function history(ServerRequestInterface $request): array
     {
@@ -368,7 +496,35 @@ class FamilyHealthModule extends AbstractModule implements ModuleCustomInterface
             }
         }
 
-        return ['subjects' => $subjects, 'subject' => $subjects[$xref] ?? null, 'entries' => $entries];
+        return [
+            'subjects'  => $subjects,
+            'subject'   => $subjects[$xref] ?? null,
+            'entries'   => $entries,
+            'opted_out' => $xrefs === [] ? [] : $this->individualsWithDegree($tree, Illnesses::optedOutOf($tree, $user, $xref, $this->maxDegree())),
+        ];
+    }
+
+    /**
+     * @param array<string,int> $degrees individual => degree
+     *
+     * @return list<array{individual:Individual,degree:int}> by degree and name
+     */
+    private function individualsWithDegree(Tree $tree, array $degrees): array
+    {
+        $list = [];
+
+        foreach ($degrees as $xref => $degree) {
+            $individual = Registry::individualFactory()->make((string) $xref, $tree);
+
+            if ($individual !== null) {
+                $list[] = ['individual' => $individual, 'degree' => $degree];
+            }
+        }
+
+        usort($list, static fn (array $x, array $y): int => $x['degree'] <=> $y['degree']
+            ?: I18N::comparator()($x['individual']->sortName(), $y['individual']->sortName()));
+
+        return $list;
     }
 
     private function historyUrl(Tree $tree, string $xref, string $category = ''): string
@@ -468,12 +624,19 @@ class FamilyHealthModule extends AbstractModule implements ModuleCustomInterface
             'degree'  => $entry['degree'],
         ], Illnesses::visibleTo($tree, $user, $this->maxDegree(), $this->catalog()));
 
-        return response(['illnesses' => $illnesses]);
+        $opted_out = array_map(static fn (array $entry): array => [
+            'xref'   => $entry['individual']->xref(),
+            'name'   => strip_tags($entry['individual']->fullName()),
+            'degree' => $entry['degree'],
+        ], $this->individualsWithDegree($tree, Illnesses::optedOutRelatives($tree, $user, $this->maxDegree())));
+
+        return response(['illnesses' => $illnesses, 'optedOut' => $opted_out]);
     }
 
     /**
      * JSON for apps: the illnesses of one individual (?xref=) for their page - only if the user may see them (same
-     * rule as everywhere). {"illnesses": [{id, illness, category, icd, date, dateText, isPending}], "canEdit"}. id is
+     * rule as everywhere). {"illnesses": [{id, illness, category, icd, date, dateText, isPending}], "canEdit",
+     * "isOptedOut"}; isOptedOut for a relative who does not take part. id is
      * webtrees' fact id for IllnessUpdate and IllnessDelete. Causes of death are left out: they show with the death.
      */
     public function getPersonIllnessesAction(ServerRequestInterface $request): ResponseInterface
@@ -487,7 +650,10 @@ class FamilyHealthModule extends AbstractModule implements ModuleCustomInterface
         $individual = Registry::individualFactory()->make($xref, $tree);
 
         if (!$this->isVisible($tree, $user, $individual)) {
-            return response(['illnesses' => [], 'canEdit' => false]);
+            // A relative who does not take part says so - to whoever would see their illnesses otherwise.
+            $is_opted_out = $individual !== null && isset(Illnesses::optedOutRelatives($tree, $user, $this->maxDegree())[$individual->xref()]);
+
+            return response(['illnesses' => [], 'canEdit' => false, 'isOptedOut' => $is_opted_out]);
         }
 
         $illnesses = [];
@@ -505,7 +671,7 @@ class FamilyHealthModule extends AbstractModule implements ModuleCustomInterface
             ];
         }
 
-        return response(['illnesses' => $illnesses, 'canEdit' => Auth::isEditor($tree, $user) && $individual->canEdit()]);
+        return response(['illnesses' => $illnesses, 'canEdit' => Auth::isEditor($tree, $user) && $individual->canEdit(), 'isOptedOut' => false]);
     }
 
     /**

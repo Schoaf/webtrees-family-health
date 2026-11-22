@@ -5,6 +5,8 @@
 - The illnesses of one individual for their page in apps, changed and deleted by editors: JSON `PersonIllnesses`,
   `IllnessUpdate` and `IllnessDelete` (POST), same rule as everywhere. webtrees itself leaves the confidential facts
   out of the individual's page.
+- Not taking part: an individual can be taken out of family health - by their own account (also for children under
+  18) or by a manager of the tree. Nobody then sees their illnesses and none can be recorded; JSON `Participation`.
 
 ## 0.1.0
 

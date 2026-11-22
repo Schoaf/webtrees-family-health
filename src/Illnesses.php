@@ -16,6 +16,10 @@ use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Tree;
 
 use function array_chunk;
+use function array_diff_key;
+use function array_filter;
+use function array_flip;
+use function array_intersect_key;
 use function array_keys;
 use function array_map;
 use function array_slice;
@@ -33,6 +37,7 @@ use function str_replace;
 use function str_starts_with;
 use function trim;
 
+use const ARRAY_FILTER_USE_KEY;
 use const PREG_SET_ORDER;
 
 /**
@@ -41,7 +46,8 @@ use const PREG_SET_ORDER;
  * linked to their account sees none.
  *
  * Read from the accepted records, past webtrees' own privacy (the facts carry RESN confidential): this rule replaces
- * it here. A relative whose name the user may not see is left out entirely.
+ * it here. A relative whose name the user may not see is left out entirely, and so is anyone who does not take part
+ * (see Participation).
  */
 final class Illnesses
 {
@@ -75,24 +81,55 @@ final class Illnesses
 
     /**
      * Individuals whose illnesses $user may see, with the degree from the nearest of the user's own individual and
-     * the user's minor children.
+     * the user's minor children. Whoever does not take part is left out for everybody.
      *
      * @return array<string,int>
      */
     public static function visibleIndividuals(Tree $tree, UserInterface $user, int $max_degree, Kinship|null $kinship = null): array
     {
+        return array_diff_key(self::relatives($tree, $user, $max_degree, $kinship), array_flip(Participation::optedOut($tree)));
+    }
+
+    /**
+     * The relatives whose illnesses $user would see but who do not take part - so they show as such, not as healthy.
+     * Only those whose name $user may see.
+     *
+     * @return array<string,int> individual => degree
+     */
+    public static function optedOutRelatives(Tree $tree, UserInterface $user, int $max_degree, Kinship|null $kinship = null): array
+    {
+        return self::named($tree, array_intersect_key(self::relatives($tree, $user, $max_degree, $kinship), array_flip(Participation::optedOut($tree))));
+    }
+
+    /**
+     * The blood relatives of $user's own individual and minor children, up to $max_degree - before Participation.
+     *
+     * @return array<string,int>
+     */
+    private static function relatives(Tree $tree, UserInterface $user, int $max_degree, Kinship|null $kinship): array
+    {
         $kinship ??= new Kinship($tree);
-        $visible   = [];
+        $relatives = [];
 
         foreach (self::subjects($tree, $user, $kinship) as $viewer) {
             foreach ($kinship->bloodRelatives($viewer) as $xref => $degree) {
                 if ($max_degree === 0 || $degree <= $max_degree) {
-                    $visible[$xref] = min($visible[$xref] ?? $degree, $degree);
+                    $relatives[$xref] = min($relatives[$xref] ?? $degree, $degree);
                 }
             }
         }
 
-        return $visible;
+        return $relatives;
+    }
+
+    /**
+     * @param array<string,int> $degrees
+     *
+     * @return array<string,int> the ones whose name may be shown
+     */
+    private static function named(Tree $tree, array $degrees): array
+    {
+        return array_filter($degrees, static fn (string $xref): bool => Registry::individualFactory()->make($xref, $tree)?->canShowName() === true, ARRAY_FILTER_USE_KEY);
     }
 
     /**
@@ -118,6 +155,19 @@ final class Illnesses
         }
 
         return self::read($tree, self::degreesFrom($subject, $max_degree, $kinship, self::visibleIndividuals($tree, $user, $max_degree, $kinship)), $catalog);
+    }
+
+    /**
+     * The relatives of $subject (from subjects()) who do not take part, with the degree to $subject - for the family
+     * history, so a gap shows as one.
+     *
+     * @return array<string,int>
+     */
+    public static function optedOutOf(Tree $tree, UserInterface $user, string $subject, int $max_degree): array
+    {
+        $kinship = new Kinship($tree);
+
+        return self::degreesFrom($subject, $max_degree, $kinship, self::optedOutRelatives($tree, $user, $max_degree, $kinship));
     }
 
     /**
@@ -208,6 +258,10 @@ final class Illnesses
     {
         if (!$individual->canEdit()) {
             return I18N::translate('You may not change this individual.');
+        }
+
+        if (Participation::isOptedOut($individual->tree(), $individual->xref())) {
+            return I18N::translate('This individual does not take part in family health.');
         }
 
         [$name, $date, $error] = self::checked($name, $date);

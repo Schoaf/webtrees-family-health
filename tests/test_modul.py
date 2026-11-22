@@ -218,6 +218,56 @@ class ModulTest(unittest.TestCase):
         self.assertEqual({"ok": True}, anna.json_post("IllnessDelete", "testbaum", {"xref": "I2", "id": neu["id"]}).json)
         self.assertNotIn("Markermutter", neuestes())
 
+    def test_teilnahme(self):
+        paul, anna, fritz = U.sitzung("mitglied"), U.sitzung("bearbeiter"), U.sitzung("verwalter")
+
+        def setzen(sitzung, xref, nein):
+            return sitzung.json_post("Participation", "testbaum", {"xref": xref, "isOptedOut": nein})
+
+        self.addCleanup(setzen, fritz, "I2", False)
+        self.addCleanup(setzen, fritz, "I3", False)
+
+        # Paul entscheidet fuer sich und sein Kind unter 18, nicht fuer seine Mutter
+        eigen = paul.get("Participation", "testbaum").json
+        self.assertEqual(["I3", "I6"], [s["xref"] for s in eigen["subjects"]])
+        self.assertEqual((False, []), (eigen["canManage"], eigen["optedOut"]))
+        self.assertEqual(400, setzen(paul, "I2", True).status)
+        self.assertEqual(400, paul.json_post("Participation", "testbaum", {"xref": "I3"}).status)
+
+        # Der Verwalter nimmt die Mutter heraus (z. B. auf ihre Bitte): fuer alle gesperrt, auch fuer ihn
+        self.assertEqual({"ok": True}, setzen(fritz, "I2", True).json)
+        self.assertEqual(["I2"], [s["xref"] for s in fritz.get("Participation", "testbaum").json["optedOut"]])
+        for sitzung in (paul, anna):
+            self.assertNotIn("Markermutter", sitzung.get("Illnesses", "testbaum").text)
+            self.assertNotIn("Markermutter", sitzung.get("List", "testbaum").text)
+            self.assertNotIn("Markermutter", sitzung.get("FamilyHistory", "testbaum").text)
+            self.assertEqual([], sitzung.get("PersonIllnesses", "testbaum", xref="I2").json["illnesses"])
+        a = anna.json_post("Illness", "testbaum", {"xref": "I2", "illness": "Markergesperrt"})
+        self.assertEqual((400, False), (a.status, a.json["ok"]))
+        # ...aber als gesperrt erkennbar - nur fuer die, die sie sonst saehen
+        historie = paul.get("FamilyHistory", "testbaum").json
+        self.assertEqual(["I2"], [e["xref"] for e in historie["optedOut"]])
+        self.assertEqual((1, "Mutter"), (historie["optedOut"][0]["degree"], historie["optedOut"][0]["relationship"]))
+        self.assertEqual(["I2"], [e["xref"] for e in paul.get("Illnesses", "testbaum").json["optedOut"]])
+        self.assertTrue(paul.get("PersonIllnesses", "testbaum", xref="I2").json["isOptedOut"])
+        self.assertIn("Nehmen nicht teil", paul.get("History", "testbaum").text)
+        self.assertIn("Nehmen nicht teil", paul.get("List", "testbaum").text)
+        self.assertFalse(fritz.get("PersonIllnesses", "testbaum", xref="I2").json["isOptedOut"])
+        self.assertEqual([], fritz.get("Illnesses", "testbaum").json["optedOut"])
+        self.assertNotIn("Nehmen nicht teil", fritz.get("List", "testbaum").text)
+        # die Verwandten der Mutter sieht Paul weiter
+        self.assertIn("Markernichte", paul.get("Illnesses", "testbaum").text)
+
+        # Paul nimmt sich selbst heraus - per Formular - und wieder herein
+        self.assertIn(paul.formular("ParticipationForm", {"xref": "I3", "opt_out": "1"}, "testbaum").status, (302, 303))
+        self.assertTrue(paul.get("Participation", "testbaum").json["subjects"][0]["isOptedOut"])
+        self.assertEqual({"ok": True}, setzen(paul, "I3", False).json)
+        self.assertFalse(paul.get("Participation", "testbaum").json["subjects"][0]["isOptedOut"])
+
+        # wieder dabei: die Mutter erscheint wieder
+        self.assertEqual({"ok": True}, setzen(fritz, "I2", False).json)
+        self.assertIn("Markermutter", paul.get("Illnesses", "testbaum").text)
+
     def test_erkrankung_im_menue_tatsache_hinzufuegen(self):
         anna = U.sitzung("bearbeiter")
         tag = "_FAMILY_HEALTH_ILLNESS"
@@ -314,7 +364,7 @@ class ModulTest(unittest.TestCase):
         ernst = next(e for e in kind["illnesses"] if e["illness"] == "Markerpartnervater")
         self.assertEqual((2, 34, True), (ernst["degree"], ernst["age"], ernst["isEarly"]))
         self.assertEqual(404, paul.get("FamilyHistory", "testbaum", xref="I12").status)
-        self.assertEqual({"subjects": [], "xref": None, "earlyAge": 50, "illnesses": []},
+        self.assertEqual({"subjects": [], "xref": None, "earlyAge": 50, "illnesses": [], "optedOut": []},
                          U.sitzung("admin").get("FamilyHistory", "testbaum").json)
 
     def test_anamnese_nur_eigene_linie(self):

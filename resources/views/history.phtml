@@ -24,6 +24,7 @@ use Fisharebest\Webtrees\View;
  * @var Closure(string,string):string                                          $url
  * @var RelationshipService                                                    $relationship
  * @var string                                                                 $list_url
+ * @var list<array{individual:Individual,degree:int}>                          $opted_out
  */
 
 ?>
@@ -102,6 +103,20 @@ use Fisharebest\Webtrees\View;
             </tbody>
         </table>
     <?php endforeach ?>
+
+    <?php if ($opted_out !== []) : ?>
+        <h3 class="h5 mt-4"><?= I18N::translate('Not taking part') ?></h3>
+        <p class="form-text"><?= I18N::translate('These relatives do not take part in family health – their illnesses are not known here.') ?></p>
+        <ul class="wt-family-health-opted-out">
+            <?php foreach ($opted_out as $entry) : ?>
+                <li>
+                    <?= $entry['individual']->fullName() ?>
+                    – <?= $relationship->getCloseRelationshipName($subject, $entry['individual']) ?>,
+                    <?= I18N::translate('degree %s', I18N::number($entry['degree'])) ?>
+                </li>
+            <?php endforeach ?>
+        </ul>
+    <?php endif ?>
 
     <?php if ($early_age > 0) : ?>
         <p class="form-text"><?= I18N::translate('Early onset: diagnosed before the age of %s.', I18N::number($early_age)) ?></p>

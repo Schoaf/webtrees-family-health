@@ -34,6 +34,14 @@ nieces, nephews and half siblings 2nd, first cousins 3rd. Adoptive and foster li
 holds for admins too; an account without a linked individual sees none. Optionally limited to a degree of
 relationship (control panel → Modules → Family health).
 
+### Not taking part
+
+Anyone can opt out: then nobody sees their illnesses – no relative, not they themselves, not an admin – and none can be
+recorded for them. You decide for yourself and for your children under 18 on the page *Family health*; a manager of the
+tree can take out anyone there, for instance when someone asks by e-mail. The facts stay in the tree and show again
+once the individual takes part again. webtrees itself still shows the confidential facts to managers on the
+individual's page.
+
 ## Catalog and categories
 
 Each illness name has a category and, optionally, an ICD-10 code – the name, not each entry, so it stays the same
@@ -90,6 +98,8 @@ Same session and CSRF token as webtrees (and api4webtrees), route `/module/_fami
 | `Illness` | POST | record one, editors only: `{"xref", "illness", "date"?, "category"?}` → `{"ok": true}` or 400 with `error` |
 | `PersonIllnesses` | GET | the illnesses of `?xref=` for their page, if you may see them: `illnesses` (`id`, `illness`, `category`, `icd`, `date`, `dateText`, `isPending`) and `canEdit`; causes of death are left out |
 | `IllnessUpdate` | POST | change one, editors only: `{"xref", "id", "illness", "date"?, "category"?}` – other lines under the fact stay; answers like `Illness` |
+| `Participation` | GET | `subjects` (`xref`, `name`, `isOptedOut`) you decide for, `canManage` and, for a manager, `optedOut` (`xref`, `name`) |
+| `Participation` | POST | `{"xref", "isOptedOut": true\|false}` – yourself, a child under 18, or anyone for a manager; answers like `Illness` |
 | `IllnessDelete` | POST | delete one, editors only: `{"xref", "id"}`; answers like `Illness` |
 
 ## Installation

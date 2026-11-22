@@ -20,6 +20,9 @@ use Fisharebest\Webtrees\Tree;
  * @var array<string,string>                                                         $categories
  * @var string                                                                       $history_url
  * @var string                                                                       $module_name
+ * @var array{subjects:list<array{individual:Individual,is_opted_out:bool}>,can_manage:bool,opted_out:list<Individual>} $participation
+ * @var string                                                                       $participation_url
+ * @var list<array{individual:Individual,degree:int}>                                $opted_out
  */
 
 $category_names = Catalog::categoryNames();
@@ -61,7 +64,57 @@ $category_names = Catalog::categoryNames();
     </table>
 <?php endif ?>
 
+<?php if ($opted_out !== []) : ?>
+    <p class="mt-3">
+        <i class="fa-solid fa-lock" aria-hidden="true"></i>
+        <?= I18N::translate('Not taking part – their illnesses are not shown:') ?>
+        <?= implode(', ', array_map(static fn (array $entry): string => '<a href="' . e($entry['individual']->url()) . '">' . $entry['individual']->fullName() . '</a>', $opted_out)) ?>
+    </p>
+<?php endif ?>
+
 <?php if ($can_add) : ?>
     <h3 class="h5 mt-4"><?= I18N::translate('Record an illness') ?></h3>
     <?= view($module_name . '::record-form', ['tree' => $tree, 'individual' => $own, 'is_individual_fixed' => false, 'catalog' => $catalog, 'categories' => $categories, 'add_url' => $add_url]) ?>
+<?php endif ?>
+
+<h3 class="h5 mt-4"><?= I18N::translate('Taking part') ?></h3>
+<p class="form-text"><?= I18N::translate('Whoever does not take part is hidden from everybody: no relative, not even an administrator, sees their illnesses here, and none can be recorded for them. What is recorded stays in the tree and shows again when they take part again.') ?></p>
+
+<?php foreach ($participation['subjects'] as $entry) : ?>
+    <form method="post" action="<?= e($participation_url) ?>" class="mb-2">
+        <?= csrf_field() ?>
+        <input type="hidden" name="xref" value="<?= e($entry['individual']->xref()) ?>">
+        <input type="hidden" name="opt_out" value="<?= $entry['is_opted_out'] ? '' : '1' ?>">
+        <?= $entry['individual']->fullName() ?>:
+        <?= $entry['is_opted_out'] ? I18N::translate('does not take part') : I18N::translate('takes part') ?>
+        <button type="submit" class="btn btn-sm btn-outline-secondary ms-2">
+            <?= $entry['is_opted_out'] ? I18N::translate('Take part again') : I18N::translate('Do not take part') ?>
+        </button>
+    </form>
+<?php endforeach ?>
+
+<?php if ($participation['can_manage']) : ?>
+    <h4 class="h6 mt-3"><?= I18N::translate('Not taking part in this family tree') ?></h4>
+    <?php if ($participation['opted_out'] === []) : ?>
+        <p><?= I18N::translate('Everybody takes part.') ?></p>
+    <?php endif ?>
+    <?php foreach ($participation['opted_out'] as $individual) : ?>
+        <form method="post" action="<?= e($participation_url) ?>" class="mb-2">
+            <?= csrf_field() ?>
+            <input type="hidden" name="xref" value="<?= e($individual->xref()) ?>">
+            <a href="<?= e($individual->url()) ?>"><?= $individual->fullName() ?></a>
+            <button type="submit" class="btn btn-sm btn-outline-secondary ms-2"><?= I18N::translate('Take part again') ?></button>
+        </form>
+    <?php endforeach ?>
+    <form method="post" action="<?= e($participation_url) ?>" class="row g-2 align-items-center mt-1">
+        <?= csrf_field() ?>
+        <input type="hidden" name="opt_out" value="1">
+        <div class="col-sm-6">
+            <?= view('components/select-individual', ['name' => 'xref', 'id' => 'opt-out-xref', 'tree' => $tree, 'individual' => null, 'required' => true]) ?>
+        </div>
+        <div class="col-auto">
+            <button type="submit" class="btn btn-sm btn-secondary"><?= I18N::translate('Do not take part') ?></button>
+        </div>
+        <div class="form-text"><?= I18N::translate('For example when someone asks you to take them out.') ?></div>
+    </form>
 <?php endif ?>
