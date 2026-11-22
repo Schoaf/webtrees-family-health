@@ -1,0 +1,132 @@
+0 HEAD
+1 SOUR family-health-demo
+1 GEDC
+2 VERS 5.5.1
+2 FORM LINEAGE-LINKED
+1 CHAR UTF-8
+0 @I1@ INDI
+1 NAME Elisabeth /Bergmann/
+1 SEX F
+1 BIRT
+2 DATE 12 JUN 1978
+2 PLAC Freiburg
+1 FAMC @F2@
+1 FAMS @F3@
+0 @I2@ INDI
+1 NAME Thomas /Bergmann/
+1 SEX M
+1 BIRT
+2 DATE 3 FEB 1952
+2 PLAC Freiburg
+1 FACT High blood pressure
+2 TYPE Illness
+2 DATE 2004
+2 RESN confidential
+1 FACT Type 2 diabetes
+2 TYPE Illness
+2 DATE 2011
+2 RESN confidential
+1 FAMC @F1@
+1 FAMS @F2@
+0 @I3@ INDI
+1 NAME Heinrich /Bergmann/
+1 SEX M
+1 BIRT
+2 DATE 20 AUG 1928
+2 PLAC Lahr
+1 FACT Heart attack
+2 TYPE Illness
+2 DATE ABT 1975
+2 RESN confidential
+1 DEAT
+2 DATE 14 NOV 1990
+2 PLAC Freiburg
+1 FAMC @F0@
+1 FAMS @F1@
+0 @I4@ INDI
+1 NAME Mia /Bergmann/
+1 SEX F
+1 BIRT
+2 DATE 9 MAR 2014
+2 PLAC Freiburg
+1 FAMC @F3@
+0 @I5@ INDI
+1 NAME Karolina /Bergmann-Weiss/
+1 SEX F
+1 BIRT
+2 DATE 30 SEP 1954
+2 PLAC Freiburg
+1 FACT Breast cancer
+2 TYPE Illness
+2 DATE 1998
+2 RESN confidential
+1 FAMC @F1@
+0 @I6@ INDI
+1 NAME Friedrich /Bergmann/
+1 SEX M
+1 BIRT
+2 DATE 2 JAN 1879
+2 PLAC Lahr
+1 DEAT
+2 DATE ABT 1950
+2 PLAC Lahr
+2 CAUS Bowel cancer
+1 FAMS @F0@
+0 @I7@ INDI
+1 NAME Anna /Bergmann/
+1 SEX F
+1 BIRT
+2 DATE 15 MAY 1911
+2 PLAC Emmendingen
+1 FACT Alzheimer's disease
+2 TYPE Illness
+2 DATE 1989
+2 RESN confidential
+1 DEAT
+2 DATE 8 JUL 1995
+2 PLAC Freiburg
+1 FAMS @F1@
+0 @I8@ INDI
+1 NAME Ingrid /Bergmann/
+1 SEX F
+1 BIRT
+2 DATE 11 APR 1955
+2 PLAC Offenburg
+1 FAMS @F2@
+0 @I9@ INDI
+1 NAME Markus /Weber/
+1 SEX M
+1 BIRT
+2 DATE 25 OCT 1976
+2 PLAC Basel
+1 FACT Asthma
+2 TYPE Illness
+2 DATE 1990
+2 RESN confidential
+1 FAMS @F3@
+0 @I10@ INDI
+1 NAME Luise /Bergmann/
+1 SEX F
+1 BIRT
+2 DATE 1882
+1 DEAT
+2 DATE 1961
+1 FAMS @F0@
+0 @F0@ FAM
+1 HUSB @I6@
+1 WIFE @I10@
+1 CHIL @I3@
+0 @F1@ FAM
+1 HUSB @I3@
+1 WIFE @I7@
+1 CHIL @I2@
+1 CHIL @I5@
+0 @F2@ FAM
+1 HUSB @I2@
+1 WIFE @I8@
+1 CHIL @I1@
+0 @F3@ FAM
+1 HUSB @I9@
+1 WIFE @I1@
+1 CHIL @I4@
+0 TRLR
