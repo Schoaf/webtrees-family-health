@@ -5,18 +5,24 @@ declare(strict_types=1);
 namespace FamilyHealth;
 
 use Fisharebest\Webtrees\Age;
+use Fisharebest\Webtrees\Auth;
 use Fisharebest\Webtrees\Contracts\UserInterface;
 use Fisharebest\Webtrees\Date;
 use Fisharebest\Webtrees\DB;
+use Fisharebest\Webtrees\Fact;
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Individual;
 use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Tree;
 
 use function array_chunk;
-use function array_map;
 use function array_keys;
+use function array_map;
+use function array_slice;
+use function explode;
+use function implode;
 use function in_array;
+use function is_string;
 use function mb_strlen;
 use function mb_strtolower;
 use function min;
@@ -24,6 +30,7 @@ use function preg_match;
 use function preg_match_all;
 use function preg_replace;
 use function str_replace;
+use function str_starts_with;
 use function trim;
 
 use const PREG_SET_ORDER;
@@ -110,16 +117,27 @@ final class Illnesses
             return null;
         }
 
-        $visible = self::visibleIndividuals($tree, $user, $max_degree, $kinship);
+        return self::read($tree, self::degreesFrom($subject, $max_degree, $kinship, self::visibleIndividuals($tree, $user, $max_degree, $kinship)), $catalog);
+    }
+
+    /**
+     * The relatives of $subject among $among, with the degree to $subject - not $subject itself.
+     *
+     * @param array<string,int> $among
+     *
+     * @return array<string,int>
+     */
+    private static function degreesFrom(string $subject, int $max_degree, Kinship $kinship, array $among): array
+    {
         $degrees = [];
 
         foreach ($kinship->bloodRelatives($subject) as $xref => $degree) {
-            if ($degree > 0 && isset($visible[$xref]) && ($max_degree === 0 || $degree <= $max_degree)) {
+            if ($degree > 0 && isset($among[$xref]) && ($max_degree === 0 || $degree <= $max_degree)) {
                 $degrees[$xref] = $degree;
             }
         }
 
-        return self::read($tree, $degrees, $catalog);
+        return $degrees;
     }
 
     /**
@@ -188,28 +206,17 @@ final class Illnesses
      */
     public static function record(Individual $individual, string $name, string $date, string $category, Catalog $catalog): string|null
     {
-        $name = trim((string) preg_replace('/[\x00-\x1F\x7F]+/u', ' ', $name));
-        $date = trim((string) preg_replace('/[\x00-\x1F\x7F]+/u', ' ', $date));
-
         if (!$individual->canEdit()) {
             return I18N::translate('You may not change this individual.');
         }
 
-        if ($name === '' || mb_strlen($name) > Catalog::NAME_MAX_LENGTH) {
-            return I18N::translate('Enter the name of the illness.');
+        [$name, $date, $error] = self::checked($name, $date);
+
+        if ($error !== null) {
+            return $error;
         }
 
-        if ($date !== '' && !(new Date($date))->isOK()) {
-            return I18N::translate('The date is not valid.');
-        }
-
-        $known = $catalog->find($name);
-
-        if ($known === null && in_array($category, Catalog::CATEGORIES, true)) {
-            $catalog->add($name, $category);
-        }
-
-        $gedcom = '1 FACT ' . str_replace('@', '@@', $known['name'] ?? $name) . "\n2 TYPE " . self::TYPE;
+        $gedcom = '1 FACT ' . str_replace('@', '@@', self::known($name, $category, $catalog)) . "\n2 TYPE " . self::TYPE;
 
         if ($date !== '') {
             $gedcom .= "\n2 DATE " . str_replace('@', '@@', $date);
@@ -218,6 +225,156 @@ final class Illnesses
         $individual->createFact($gedcom . "\n2 RESN confidential", true);
 
         return null;
+    }
+
+    /**
+     * The illness facts of $individual, pending additions included (only editors get those from webtrees), pending
+     * deletions left out. Past webtrees' privacy like read() - the caller checks the module's rule.
+     *
+     * @return list<array{fact:Fact,illness:string,date:string}>
+     */
+    public static function factsOf(Individual $individual): array
+    {
+        $found = [];
+
+        foreach ($individual->facts(['FACT'], false, Auth::PRIV_HIDE, true) as $fact) {
+            if (!$fact->isPendingDeletion() && self::isIllness($fact)) {
+                $found[] = ['fact' => $fact, 'illness' => self::text($fact->value()), 'date' => self::text($fact->attribute('DATE'))];
+            }
+        }
+
+        return $found;
+    }
+
+    /**
+     * Changes the name and the date of an illness of $individual. Everything else under the fact (type, notes,
+     * sources) stays; RESN confidential is added if it got lost. Goes through pending changes like any edit.
+     *
+     * @return string|null what is wrong, in the user's language - null when it is changed
+     */
+    public static function update(Individual $individual, string $fact_id, string $name, string $date, string $category, Catalog $catalog): string|null
+    {
+        $fact = self::editableFact($individual, $fact_id);
+
+        if (is_string($fact)) {
+            return $fact;
+        }
+
+        [$name, $date, $error] = self::checked($name, $date);
+
+        if ($error !== null) {
+            return $error;
+        }
+
+        $known = self::known($name, $category, $catalog);
+        $lines = ['1 FACT ' . str_replace('@', '@@', $known)];
+        $level = 0;
+
+        // Keep the lines under the fact, minus the old date and whatever sits under it.
+        foreach (array_slice(explode("\n", $fact->gedcom()), 1) as $line) {
+            $depth = (int) $line;
+
+            if ($level > 0 && $depth > $level) {
+                continue;
+            }
+
+            $level = 0;
+
+            if (str_starts_with($line, '2 DATE')) {
+                $level = 2;
+                continue;
+            }
+
+            $lines[] = $line;
+
+            if (str_starts_with($line, '2 TYPE') && $date !== '') {
+                $lines[] = '2 DATE ' . str_replace('@', '@@', $date);
+            }
+        }
+
+        if (!in_array('2 RESN confidential', $lines, true)) {
+            $lines[] = '2 RESN confidential';
+        }
+
+        $individual->updateFact($fact_id, implode("\n", $lines), true);
+
+        return null;
+    }
+
+    /**
+     * Deletes an illness of $individual - through pending changes like any edit.
+     *
+     * @return string|null what is wrong, in the user's language - null when it is deleted
+     */
+    public static function delete(Individual $individual, string $fact_id): string|null
+    {
+        $fact = self::editableFact($individual, $fact_id);
+
+        if (is_string($fact)) {
+            return $fact;
+        }
+
+        $individual->deleteFact($fact_id, true);
+
+        return null;
+    }
+
+    /**
+     * The illness $fact_id of $individual - or what is wrong.
+     */
+    private static function editableFact(Individual $individual, string $fact_id): Fact|string
+    {
+        if (!$individual->canEdit()) {
+            return I18N::translate('You may not change this individual.');
+        }
+
+        foreach (self::factsOf($individual) as $entry) {
+            if ($entry['fact']->id() === $fact_id) {
+                return $entry['fact'];
+            }
+        }
+
+        return I18N::translate('This illness does not exist any more.');
+    }
+
+    /**
+     * The name and the date without control characters, and what is wrong with them.
+     *
+     * @return array{0:string,1:string,2:string|null}
+     */
+    private static function checked(string $name, string $date): array
+    {
+        $name = trim((string) preg_replace('/[\x00-\x1F\x7F]+/u', ' ', $name));
+        $date = trim((string) preg_replace('/[\x00-\x1F\x7F]+/u', ' ', $date));
+
+        if ($name === '' || mb_strlen($name) > Catalog::NAME_MAX_LENGTH) {
+            return [$name, $date, I18N::translate('Enter the name of the illness.')];
+        }
+
+        if ($date !== '' && !(new Date($date))->isOK()) {
+            return [$name, $date, I18N::translate('The date is not valid.')];
+        }
+
+        return [$name, $date, null];
+    }
+
+    /**
+     * The name as the catalog spells it. A name new to the catalog is added with $category, if one is given.
+     */
+    private static function known(string $name, string $category, Catalog $catalog): string
+    {
+        $known = $catalog->find($name);
+
+        if ($known === null && in_array($category, Catalog::CATEGORIES, true)) {
+            $catalog->add($name, $category);
+        }
+
+        return $known['name'] ?? $name;
+    }
+
+    private static function isIllness(Fact $fact): bool
+    {
+        return preg_match(self::ILLNESS_TYPE, trim($fact->attribute('TYPE'))) === 1;
     }
 
     /**

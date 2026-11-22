@@ -162,6 +162,62 @@ class ModulTest(unittest.TestCase):
         self.assertIn("Erkrankung", seite.text)
         self.assertNotIn(">Illness<", seite.text)
 
+    def test_erkrankungen_einer_person(self):
+        # Dieselbe Regel wie in der Liste, je Person; Todesursachen stehen beim Tod, nicht hier.
+        fakten = {"I2": "Markermutter", "I8": "Markerschwager", "I9": "Markernichte", "I10": "Markerpartnervater",
+                  "I12": "Markerfremd", "I13": "Markeradoptiert"}
+        for konto, sichtbar in SICHTBAR.items():
+            s = U.sitzung(konto)
+            for xref, marker in fakten.items():
+                antwort = s.get("PersonIllnesses", "testbaum", xref=xref)
+                self.assertEqual(200, antwort.status, (konto, xref))
+                namen = [e["illness"] for e in antwort.json["illnesses"] if not e["isPending"]]
+                # test_eintragen kann bei Fritz eine weitere angenommen haben
+                if marker in sichtbar:
+                    self.assertIn(marker, namen, (konto, xref))
+                else:
+                    self.assertEqual([], namen, (konto, xref))
+        self.assertEqual([], U.sitzung("mitglied").get("PersonIllnesses", "testbaum", xref="I1").json["illnesses"])
+        mutter = U.sitzung("mitglied").get("PersonIllnesses", "testbaum", xref="I2").json
+        self.assertFalse(mutter["canEdit"])
+        self.assertTrue(mutter["illnesses"][0]["id"])
+        self.assertTrue(U.sitzung("bearbeiter").get("PersonIllnesses", "testbaum", xref="I2").json["canEdit"])
+        self.assertNotEqual(200, U.sitzung().get("PersonIllnesses", "testbaum", xref="I2").status)
+
+    def test_erkrankung_aendern_und_loeschen(self):
+        anna = U.sitzung("bearbeiter")
+
+        def mutter():
+            return next(e for e in anna.get("PersonIllnesses", "testbaum", xref="I2").json["illnesses"]
+                        if e["illness"].startswith("Markermutter"))
+
+        def neuestes():
+            return umgebung.sql("SELECT new_gedcom FROM wt_change WHERE xref='I2' AND status='pending' ORDER BY change_id DESC")[0][0]
+
+        vorher = umgebung.sql("SELECT COALESCE(MAX(change_id), 0) FROM wt_change")[0][0]
+        # Die Aenderungen dieses Tests verwerfen - die anderen Tests erwarten die Mutter unveraendert.
+        self.addCleanup(umgebung.sql, "DELETE FROM wt_change WHERE change_id > ?", vorher)
+        alt = mutter()["id"]
+        rumpf = {"xref": "I2", "id": alt, "illness": "Markermutter2", "date": "ABT 1980"}
+        # Nur Bearbeiter, und nur bei Personen, deren Erkrankungen sie sehen
+        self.assertEqual(400, U.sitzung("mitglied").json_post("IllnessUpdate", "testbaum", rumpf).status)
+        self.assertEqual(400, U.sitzung("admin").json_post("IllnessUpdate", "testbaum", rumpf).status)
+        self.assertEqual(400, anna.json_post("IllnessUpdate", "testbaum", {**rumpf, "id": "nicht-da"}).status)
+        self.assertEqual(400, anna.json_post("IllnessUpdate", "testbaum", {**rumpf, "date": "kein Datum"}).status)
+
+        self.assertEqual({"ok": True}, anna.json_post("IllnessUpdate", "testbaum", rumpf).json)
+        # TYPE bleibt, wie er war ("Erkrankung" in testbaum.ged)
+        self.assertIn("1 FACT Markermutter2\n2 TYPE Erkrankung\n2 DATE ABT 1980\n2 RESN confidential", neuestes())
+        # bis zur Freigabe zeigt die Liste noch die alte
+        self.assertIn("Markermutter", U.sitzung("mitglied").get("Illnesses", "testbaum").text)
+        self.assertNotIn("Markermutter2", U.sitzung("mitglied").get("Illnesses", "testbaum").text)
+
+        neu = mutter()
+        self.assertEqual(("Markermutter2", "ABT 1980", True), (neu["illness"], neu["date"], neu["isPending"]))
+        self.assertEqual(400, U.sitzung("mitglied").json_post("IllnessDelete", "testbaum", {"xref": "I2", "id": neu["id"]}).status)
+        self.assertEqual({"ok": True}, anna.json_post("IllnessDelete", "testbaum", {"xref": "I2", "id": neu["id"]}).json)
+        self.assertNotIn("Markermutter", neuestes())
+
     def test_erkrankung_im_menue_tatsache_hinzufuegen(self):
         anna = U.sitzung("bearbeiter")
         tag = "_FAMILY_HEALTH_ILLNESS"

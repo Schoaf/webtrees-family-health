@@ -21,6 +21,7 @@ return [
     'You may not change this individual.' => 'Sie dürfen diese Person nicht ändern.',
     'Enter the name of the illness.' => 'Geben Sie den Namen der Erkrankung ein.',
     'The date is not valid.' => 'Das Datum ist ungültig.',
+    'This illness does not exist any more.' => 'Diese Erkrankung gibt es nicht mehr.',
     'Choose an individual.' => 'Wählen Sie eine Person.',
     'Heart and circulation' => 'Herz und Kreislauf',
     'Cancer' => 'Krebs',

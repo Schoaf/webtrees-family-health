@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- The illnesses of one individual for their page in apps, changed and deleted by editors: JSON `PersonIllnesses`,
+  `IllnessUpdate` and `IllnessDelete` (POST), same rule as everywhere. webtrees itself leaves the confidential facts
+  out of the individual's page.
+
 ## 0.1.0
 
 - Who sees which illness: blood relatives of your own individual and of your children under 18, by genetic degree,

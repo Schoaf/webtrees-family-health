@@ -422,13 +422,11 @@ class FamilyHealthModule extends AbstractModule implements ModuleCustomInterface
     {
         $tree = Validator::attributes($request)->tree();
         $user = Validator::attributes($request)->user();
-        $body = json_decode((string) $request->getBody(), true);
-        $body = is_array($body) ? $body : [];
+        $body = $this->jsonBody($request);
 
         Auth::checkComponentAccess($this, ModuleListInterface::class, $tree, $user);
 
-        $text  = static fn (string $key): string => is_string($body[$key] ?? null) ? $body[$key] : '';
-        $error = $this->recordFor($tree, $user, $text('xref'), $text('illness'), $text('date'), $text('category'));
+        $error = $this->recordFor($tree, $user, $body['xref'], $body['illness'], $body['date'], $body['category']);
 
         return response($error === null ? ['ok' => true] : ['ok' => false, 'error' => $error], $error === null ? 200 : 400);
     }
@@ -471,6 +469,117 @@ class FamilyHealthModule extends AbstractModule implements ModuleCustomInterface
         ], Illnesses::visibleTo($tree, $user, $this->maxDegree(), $this->catalog()));
 
         return response(['illnesses' => $illnesses]);
+    }
+
+    /**
+     * JSON for apps: the illnesses of one individual (?xref=) for their page - only if the user may see them (same
+     * rule as everywhere). {"illnesses": [{id, illness, category, icd, date, dateText, isPending}], "canEdit"}. id is
+     * webtrees' fact id for IllnessUpdate and IllnessDelete. Causes of death are left out: they show with the death.
+     */
+    public function getPersonIllnessesAction(ServerRequestInterface $request): ResponseInterface
+    {
+        $tree = Validator::attributes($request)->tree();
+        $user = Validator::attributes($request)->user();
+        $xref = Validator::queryParams($request)->isXref()->string('xref');
+
+        Auth::checkComponentAccess($this, ModuleListInterface::class, $tree, $user);
+
+        $individual = Registry::individualFactory()->make($xref, $tree);
+
+        if (!$this->isVisible($tree, $user, $individual)) {
+            return response(['illnesses' => [], 'canEdit' => false]);
+        }
+
+        $illnesses = [];
+
+        foreach (Illnesses::factsOf($individual) as $entry) {
+            $known       = $this->catalog()->find($entry['illness']);
+            $illnesses[] = [
+                'id'        => $entry['fact']->id(),
+                'illness'   => $entry['illness'],
+                'category'  => $known['category'] ?? 'other',
+                'icd'       => $known['icd'] ?? '',
+                'date'      => $entry['date'],
+                'dateText'  => $entry['date'] === '' ? '' : strip_tags((new Date($entry['date']))->display()),
+                'isPending' => $entry['fact']->isPendingAddition(),
+            ];
+        }
+
+        return response(['illnesses' => $illnesses, 'canEdit' => Auth::isEditor($tree, $user) && $individual->canEdit()]);
+    }
+
+    /**
+     * JSON for apps: change an illness - {"xref", "id", "illness", "date"?, "category"?}. Answers like Illness.
+     */
+    public function postIllnessUpdateAction(ServerRequestInterface $request): ResponseInterface
+    {
+        return $this->changeIllness($request, fn (Individual $individual, array $body): string|null => Illnesses::update(
+            $individual,
+            $body['id'],
+            $body['illness'],
+            $body['date'],
+            $body['category'],
+            $this->catalog(),
+        ));
+    }
+
+    /**
+     * JSON for apps: delete an illness - {"xref", "id"}. Answers like Illness.
+     */
+    public function postIllnessDeleteAction(ServerRequestInterface $request): ResponseInterface
+    {
+        return $this->changeIllness($request, static fn (Individual $individual, array $body): string|null => Illnesses::delete($individual, $body['id']));
+    }
+
+    /**
+     * An editor changes an illness of an individual whose illnesses they may see.
+     *
+     * @param callable(Individual,array<string,string>):(string|null) $change what is wrong - null when done
+     */
+    private function changeIllness(ServerRequestInterface $request, callable $change): ResponseInterface
+    {
+        $tree = Validator::attributes($request)->tree();
+        $user = Validator::attributes($request)->user();
+        $body = $this->jsonBody($request);
+
+        Auth::checkComponentAccess($this, ModuleListInterface::class, $tree, $user);
+
+        $individual = Registry::individualFactory()->make($body['xref'], $tree);
+        $error      = match (true) {
+            !Auth::isEditor($tree, $user), !$this->isVisible($tree, $user, $individual) => I18N::translate('You may not change this individual.'),
+            default => $change($individual, $body),
+        };
+
+        return response($error === null ? ['ok' => true] : ['ok' => false, 'error' => $error], $error === null ? 200 : 400);
+    }
+
+    /**
+     * Whether the module's rule lets $user see the illnesses of $individual.
+     *
+     * @phpstan-assert-if-true Individual $individual
+     */
+    private function isVisible(Tree $tree, UserInterface $user, Individual|null $individual): bool
+    {
+        return $individual !== null
+            && $individual->canShowName()
+            && isset(Illnesses::visibleIndividuals($tree, $user, $this->maxDegree())[$individual->xref()]);
+    }
+
+    /**
+     * The text fields of a JSON body - an empty string for a missing or non-text one.
+     *
+     * @return array<string,string>
+     */
+    private function jsonBody(ServerRequestInterface $request): array
+    {
+        $body = json_decode((string) $request->getBody(), true);
+        $text = [];
+
+        foreach (['xref', 'id', 'illness', 'date', 'category'] as $key) {
+            $text[$key] = is_array($body) && is_string($body[$key] ?? null) ? $body[$key] : '';
+        }
+
+        return $text;
     }
 
     /**
