@@ -116,6 +116,48 @@ class ModulTest(unittest.TestCase):
         finally:
             umgebung.sql("DELETE FROM wt_module_setting WHERE module_name='_family-health_' AND setting_name='catalog'")
 
+    def test_katalog_umbenennen(self):
+        admin = U.sitzung("admin")
+        vorher = umgebung.sql("SELECT i_id, i_gedcom FROM wt_individuals WHERE i_id IN ('I1', 'I2')")
+        letzte = umgebung.sql("SELECT COALESCE(MAX(change_id), 0) FROM wt_change")[0][0]
+
+        def zurueck():
+            for xref, gedcom in vorher:
+                umgebung.sql("UPDATE wt_individuals SET i_gedcom = ? WHERE i_id = ?", gedcom, xref)
+            umgebung.sql("DELETE FROM wt_change WHERE change_id > ?", letzte)
+            umgebung.sql("DELETE FROM wt_module_setting WHERE module_name='_family-health_' AND setting_name='catalog'")
+
+        self.addCleanup(zurueck)
+
+        def gedcom(xref):
+            return umgebung.sql("SELECT i_gedcom FROM wt_individuals WHERE i_id = ?", xref)[0][0]
+
+        # Namen in Gebrauch: Anzahl Personen und Link in die Suche fuer den Dialog
+        seite = admin.get("Admin").text
+        self.assertIn('data-original="Markermutter" data-count="1"', seite)
+        self.assertIn("search-general", seite)
+        self.assertIn("search_individuals", seite)
+
+        # Nur im Katalog: die Personen behalten den alten Namen
+        nur_katalog = {"catalog_form": "1", "max_degree": "0", "rename_individuals": "0",
+                       "entries[0][original]": "Markermutter", "entries[0][name]": "Markermutter3", "entries[0][category]": "cancer"}
+        self.assertIn(admin.formular("Admin", nur_katalog).status, (302, 303))
+        self.assertIn("1 FACT Markermutter\n", gedcom("I2"))
+
+        # Bei allen Personen: Erkrankung und Todesursache; in einen vorhandenen Namen bleibt dessen Eintrag
+        felder = {"catalog_form": "1", "max_degree": "0", "rename_individuals": "1",
+                  "entries[0][original]": "Markermutter", "entries[0][name]": "Markerneu", "entries[0][category]": "other",
+                  "entries[1][original]": "Markertodesursache", "entries[1][name]": "Markerneu2", "entries[1][category]": "lung",
+                  "entries[2][original]": "Markerneu", "entries[2][name]": "Markerneu", "entries[2][category]": "cancer", "entries[2][icd]": "C50"}
+        self.assertIn(admin.formular("Admin", felder).status, (302, 303))
+        self.assertIn("1 FACT Markerneu\n2 TYPE", gedcom("I2"))
+        self.assertIn("2 CAUS Markerneu2", gedcom("I1"))
+        self.assertNotIn("Markertodesursache", gedcom("I1"))
+        namen = {e["name"]: e for e in U.sitzung("mitglied").get("Catalog", "testbaum").json["illnesses"]}
+        self.assertEqual({"name": "Markerneu", "category": "cancer", "icd": "C50"}, namen["Markerneu"])
+        self.assertEqual("lung", namen["Markerneu2"]["category"])
+        self.assertIn("Personen: 1", admin.get("Admin").text)
+
     def _kategorie(self, krankheit):
         for e in U.sitzung("mitglied").get("Illnesses", "testbaum").json["illnesses"]:
             if e["illness"] == krankheit:

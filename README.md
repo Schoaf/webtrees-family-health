@@ -49,7 +49,8 @@ everywhere. Categories: heart and circulation, cancer, diabetes and metabolism, 
 mental health, lungs, kidneys, hereditary syndromes, other. An illness not in the catalog counts as *other*.
 
 The catalog starts with about 40 common illnesses in the site's language (German or English) and is edited in the
-module's settings, which also list names used in a tree but missing from the catalog. JSON `Catalog/{tree}` gives apps
+module's settings, which also list names used in a tree but missing from the catalog. Renaming a name there offers to
+rename it for every individual who has it as well – with their number and a link to the search. JSON `Catalog/{tree}` gives apps
 the categories and the catalog, as suggestions when entering an illness. It holds only names, never who has them.
 
 ## Recording an illness

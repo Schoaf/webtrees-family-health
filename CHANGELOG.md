@@ -7,6 +7,8 @@
   out of the individual's page.
 - Not taking part: an individual can be taken out of family health - by their own account (also for children under
   18) or by a manager of the tree. Nobody then sees their illnesses and none can be recorded; JSON `Participation`.
+- Renaming an illness in the catalog can rename it for every individual who has it, after asking - with their number
+  and a link to the search.
 
 ## 0.1.0
 

@@ -51,6 +51,8 @@ steht, zählt als *Sonstiges*.
 
 Der Katalog beginnt mit rund 40 häufigen Erkrankungen in der Sprache der Website (Deutsch oder Englisch) und wird in den
 Einstellungen des Moduls gepflegt. Dort stehen auch Namen, die in einem Stammbaum vorkommen, aber im Katalog fehlen.
+Wer dort einen Namen umbenennt, kann ihn auf Nachfrage auch bei allen Personen umbenennen, die ihn tragen – mit deren
+Anzahl und einem Link in die Suche.
 JSON `Catalog/{baum}` liefert Apps die Kategorien und den Katalog als Vorschläge beim Eintragen. Er enthält nur Namen,
 nie, wer betroffen ist.
 

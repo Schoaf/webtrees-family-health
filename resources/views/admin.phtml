@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Fisharebest\Webtrees\Http\RequestHandlers\ControlPanel;
 use Fisharebest\Webtrees\Http\RequestHandlers\ModulesAllPage;
 use Fisharebest\Webtrees\I18N;
+use Fisharebest\Webtrees\View;
 
 /**
  * @var string                                          $title
@@ -16,10 +17,11 @@ use Fisharebest\Webtrees\I18N;
  * @var array<string,array{category:string,icd:string}> $catalog
  * @var list<string>                                    $missing
  * @var int                                             $max_length
+ * @var array<string,array{count:int,links:list<array{tree:string,url:string}>}> $usage
  */
 
 // One row of the catalog table: name, category, ICD-10 code, delete.
-$row = static function (int $i, string $name, string $category, string $icd, bool $is_new) use ($categories, $max_length): string {
+$row = static function (int $i, string $name, string $category, string $icd, bool $is_new) use ($categories, $max_length, $usage): string {
     // A new row may stay without category - then it is not added.
     $options = $is_new ? '<option value=""></option>' : '';
 
@@ -27,8 +29,13 @@ $row = static function (int $i, string $name, string $category, string $icd, boo
         $options .= '<option value="' . e($id) . '"' . ($id === $category ? ' selected' : '') . '>' . e($label) . '</option>';
     }
 
+    // A name already in use remembers what it was, so renaming it can rename it for the individuals as well.
+    $used     = $usage[mb_strtolower($name)] ?? null;
+    $original = $name === '' ? '' : '<input type="hidden" name="entries[' . $i . '][original]" value="' . e($name) . '">';
+    $data     = $used === null ? '' : ' data-original="' . e($name) . '" data-count="' . $used['count'] . '" data-links="' . e((string) json_encode($used['links'])) . '"';
+
     return '<tr>'
-        . '<td><input class="form-control form-control-sm" name="entries[' . $i . '][name]" value="' . e($name) . '" maxlength="' . $max_length . '"></td>'
+        . '<td>' . $original . '<input class="form-control form-control-sm" name="entries[' . $i . '][name]" value="' . e($name) . '" maxlength="' . $max_length . '"' . $data . '></td>'
         . '<td><select class="form-select form-select-sm" name="entries[' . $i . '][category]">' . $options . '</select></td>'
         . '<td><input class="form-control form-control-sm" name="entries[' . $i . '][icd]" value="' . e($icd) . '" size="7" pattern="[A-Za-z][0-9]{2}(\.[0-9A-Za-z]{1,4})?"></td>'
         . '<td>' . ($is_new ? '' : '<input class="form-check-input" type="checkbox" name="entries[' . $i . '][delete]" value="1" aria-label="' . e(I18N::translate('Delete')) . '">') . '</td>'
@@ -43,9 +50,10 @@ $i = 0;
 
 <h1><?= e($title) ?></h1>
 
-<form method="post">
+<form method="post" id="family-health-catalog">
     <?= csrf_field() ?>
     <input type="hidden" name="catalog_form" value="1">
+    <input type="hidden" name="rename_individuals" value="" id="family-health-rename">
 
     <div class="row mb-3">
         <label class="col-sm-3 col-form-label" for="max_degree"><?= I18N::translate('Visible up to degree of relationship') ?></label>
@@ -97,3 +105,71 @@ $i = 0;
 
     <button type="submit" class="btn btn-primary"><?= I18N::translate('save') ?></button>
 </form>
+
+<dialog id="family-health-rename-dialog" class="border rounded shadow p-4" style="max-width: 40rem;"
+        data-individuals="<?= e(I18N::translate('individuals: %s', '%s')) ?>" data-search="<?= e(I18N::translate('Show in the search')) ?>">
+    <h2 class="h5"><?= I18N::translate('Rename these illnesses for all individuals as well?') ?></h2>
+    <ul id="family-health-rename-list"></ul>
+    <p class="form-text"><?= I18N::translate('Otherwise only the catalog changes, and the individuals keep the old name – without a category.') ?></p>
+    <div class="d-flex flex-wrap gap-2 justify-content-end">
+        <button type="button" class="btn btn-secondary" data-choice=""><?= I18N::translate('cancel') ?></button>
+        <button type="button" class="btn btn-outline-primary" data-choice="0"><?= I18N::translate('Only in the catalog') ?></button>
+        <button type="button" class="btn btn-primary" data-choice="1"><?= I18N::translate('Rename for all individuals') ?></button>
+    </div>
+</dialog>
+
+<?php View::push('javascript') ?>
+<script>
+(() => {
+    const form = document.getElementById('family-health-catalog');
+    const dialog = document.getElementById('family-health-rename-dialog');
+    const list = document.getElementById('family-health-rename-list');
+    let isConfirmed = false;
+
+    form.addEventListener('submit', (event) => {
+        if (isConfirmed || typeof dialog.showModal !== 'function') {
+            return;
+        }
+
+        const renames = [...form.querySelectorAll('input[data-original]')].filter((input) => {
+            const remove = input.closest('tr').querySelector('input[type=checkbox]');
+
+            return input.value.trim() !== '' && input.value.trim() !== input.dataset.original && !(remove && remove.checked);
+        });
+
+        if (renames.length === 0) {
+            return;
+        }
+
+        event.preventDefault();
+        list.replaceChildren(...renames.map((input) => {
+            const item = document.createElement('li');
+            const links = JSON.parse(input.dataset.links);
+
+            item.append('„' + input.dataset.original + '“ → „' + input.value.trim() + '“ – ' + dialog.dataset.individuals.replace('%s', input.dataset.count));
+            links.forEach((link) => {
+                const anchor = document.createElement('a');
+
+                anchor.href = link.url;
+                anchor.target = '_blank';
+                anchor.textContent = dialog.dataset.search + (links.length > 1 ? ': ' + link.tree : '');
+                item.append(' · ', anchor);
+            });
+
+            return item;
+        }));
+        dialog.showModal();
+    });
+
+    dialog.querySelectorAll('[data-choice]').forEach((button) => button.addEventListener('click', () => {
+        dialog.close();
+
+        if (button.dataset.choice !== '') {
+            document.getElementById('family-health-rename').value = button.dataset.choice;
+            isConfirmed = true;
+            form.requestSubmit();
+        }
+    }));
+})();
+</script>
+<?php View::endpush() ?>

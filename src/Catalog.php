@@ -10,6 +10,8 @@ use Fisharebest\Webtrees\Module\AbstractModule;
 use Fisharebest\Webtrees\Site;
 
 use function array_key_exists;
+use function array_map;
+use function array_unique;
 use function explode;
 use function in_array;
 use function is_array;
@@ -146,6 +148,30 @@ final class Catalog
         }
 
         return $missing;
+    }
+
+    /**
+     * How many individuals carry each illness name, per tree - so a name can be renamed for all of them.
+     *
+     * @return array<string,array<string,int>> lower-case name => tree name => individuals
+     */
+    public function usage(): array
+    {
+        $usage = [];
+
+        foreach (DB::table('individuals')
+            ->join('gedcom', 'gedcom_id', '=', 'i_file')
+            ->where(static fn ($query) => $query->where('i_gedcom', 'LIKE', '%1 FACT %')->orWhere('i_gedcom', 'LIKE', '%2 CAUS %'))
+            ->select(['gedcom_name', 'i_gedcom'])
+            ->get() as $row) {
+            $names = array_unique(array_map(static fn (array $illness): string => mb_strtolower($illness[0]), Illnesses::illnessesIn((string) $row->i_gedcom)));
+
+            foreach ($names as $name) {
+                $usage[$name][(string) $row->gedcom_name] = ($usage[$name][(string) $row->gedcom_name] ?? 0) + 1;
+            }
+        }
+
+        return $usage;
     }
 
     /**

@@ -7,11 +7,13 @@ namespace FamilyHealth;
 use Fisharebest\Webtrees\Auth;
 use Fisharebest\Webtrees\Contracts\UserInterface;
 use Fisharebest\Webtrees\Date;
+use Fisharebest\Webtrees\DB;
 use Fisharebest\Webtrees\Elements\CustomFact;
 use Fisharebest\Webtrees\FlashMessages;
 use Fisharebest\Webtrees\Http\Exceptions\HttpAccessDeniedException;
 use Fisharebest\Webtrees\Http\Exceptions\HttpNotFoundException;
 use Fisharebest\Webtrees\Http\RequestHandlers\AddNewFact;
+use Fisharebest\Webtrees\Http\RequestHandlers\SearchGeneralPage;
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Individual;
 use Fisharebest\Webtrees\Module\AbstractModule;
@@ -25,6 +27,7 @@ use Fisharebest\Webtrees\Module\ModuleListInterface;
 use Fisharebest\Webtrees\Module\ModuleListTrait;
 use Fisharebest\Webtrees\Registry;
 use Fisharebest\Webtrees\Services\RelationshipService;
+use Fisharebest\Webtrees\Services\TreeService;
 use Fisharebest\Webtrees\Tree;
 use Fisharebest\Webtrees\Validator;
 use Fisharebest\Webtrees\View;
@@ -35,6 +38,8 @@ use function array_column;
 use function array_flip;
 use function array_unique;
 use function array_values;
+use function addcslashes;
+use function array_sum;
 use function base64_encode;
 use function array_map;
 use function explode;
@@ -52,6 +57,7 @@ use function route;
 use function sprintf;
 use function str_starts_with;
 use function strip_tags;
+use function trim;
 use function usort;
 
 /**
@@ -787,7 +793,38 @@ class FamilyHealthModule extends AbstractModule implements ModuleCustomInterface
             'catalog'    => $this->catalog()->entries(),
             'missing'    => $this->catalog()->namesNotInCatalog(),
             'max_length' => Catalog::NAME_MAX_LENGTH,
+            'usage'      => $this->usageWithLinks(),
         ]);
+    }
+
+    /**
+     * Who carries each illness name: the number of individuals and, per tree, a link to webtrees' search for it.
+     *
+     * @return array<string,array{count:int,links:list<array{tree:string,url:string}>}> lower-case name => usage
+     */
+    private function usageWithLinks(): array
+    {
+        $trees = Registry::container()->get(TreeService::class)->all();
+        $usage = [];
+
+        foreach ($this->catalog()->usage() as $name => $per_tree) {
+            $links = [];
+
+            foreach ($per_tree as $tree_name => $count) {
+                $tree = $trees->get($tree_name);
+
+                if ($tree instanceof Tree) {
+                    $links[] = [
+                        'tree' => $tree->title() . ' (' . I18N::number($count) . ')',
+                        'url'  => route(SearchGeneralPage::class, ['tree' => $tree->name(), 'query' => '"' . $name . '"', 'search_individuals' => '1']),
+                    ];
+                }
+            }
+
+            $usage[$name] = ['count' => array_sum($per_tree), 'links' => $links];
+        }
+
+        return $usage;
     }
 
     public function postAdminAction(ServerRequestInterface $request): ResponseInterface
@@ -810,19 +847,66 @@ class FamilyHealthModule extends AbstractModule implements ModuleCustomInterface
         // the form had the catalog at all - a post without it keeps the catalog as it is.
         if (Validator::parsedBody($request)->string('catalog_form', '') === '1') {
             $entries = [];
+            $renamed = [];
+            $renames = [];
 
             foreach (Validator::parsedBody($request)->array('entries') as $row) {
-                if (is_array($row) && ($row['delete'] ?? '') === '') {
-                    $entries[(string) ($row['name'] ?? '')] = ['category' => (string) ($row['category'] ?? ''), 'icd' => (string) ($row['icd'] ?? '')];
+                if (!is_array($row) || ($row['delete'] ?? '') !== '') {
+                    continue;
+                }
+
+                $name     = trim((string) ($row['name'] ?? ''));
+                $original = trim((string) ($row['original'] ?? ''));
+                $entry    = ['category' => (string) ($row['category'] ?? ''), 'icd' => (string) ($row['icd'] ?? '')];
+
+                if ($original !== '' && $name !== '' && $original !== $name) {
+                    $renamed[$name]     = $entry;
+                    $renames[$original] = $name;
+                } else {
+                    $entries[$name] = $entry;
                 }
             }
 
-            $this->catalog()->save($entries);
+            // Renamed to a name the catalog has already: that entry stays (the catalog drops the later duplicate).
+            $this->catalog()->save($entries + $renamed);
+
+            if (Validator::parsedBody($request)->string('rename_individuals', '') === '1') {
+                foreach ($renames as $old => $new) {
+                    FlashMessages::addMessage(I18N::translate('Renamed “%1$s” to “%2$s” – individuals: %3$s', e($old), e($new), I18N::number($this->renameEverywhere($old, $new))), 'info');
+                }
+            }
         }
 
         FlashMessages::addMessage(I18N::translate('The preferences for the module “%s” have been updated.', $this->title()), 'success');
 
         return redirect($this->getConfigLink());
+    }
+
+    /**
+     * Renames an illness in the facts of every individual in every tree.
+     *
+     * @return int how many individuals were changed
+     */
+    private function renameEverywhere(string $old, string $new): int
+    {
+        $changed = 0;
+
+        foreach (Registry::container()->get(TreeService::class)->all() as $tree) {
+            $xrefs = DB::table('individuals')
+                ->where('i_file', '=', $tree->id())
+                ->where('i_gedcom', 'LIKE', '%' . addcslashes($old, '\\%_') . '%')
+                ->pluck('i_id');
+
+            foreach ($xrefs as $xref) {
+                $individual = Registry::individualFactory()->make((string) $xref, $tree);
+
+                if ($individual !== null && Illnesses::rename($individual, $old, $new) > 0) {
+                    $changed++;
+                }
+            }
+        }
+
+        return $changed;
     }
 
     public function catalog(): Catalog

@@ -22,6 +22,7 @@ use function array_flip;
 use function array_intersect_key;
 use function array_keys;
 use function array_map;
+use function array_search;
 use function array_slice;
 use function explode;
 use function implode;
@@ -35,6 +36,7 @@ use function preg_match_all;
 use function preg_replace;
 use function str_replace;
 use function str_starts_with;
+use function substr;
 use function trim;
 
 use const ARRAY_FILTER_USE_KEY;
@@ -424,6 +426,48 @@ final class Illnesses
         }
 
         return $known['name'] ?? $name;
+    }
+
+    /**
+     * Renames the illness $old (in any case) to $new in the facts of $individual - illnesses and causes of death.
+     * Through pending changes like any edit; for an administrator renaming a catalog name.
+     *
+     * @return int how many facts were changed
+     */
+    public static function rename(Individual $individual, string $old, string $new): int
+    {
+        $old     = mb_strtolower(trim($old));
+        $value   = str_replace('@', '@@', $new);
+        $changed = 0;
+
+        foreach ($individual->facts(['FACT', 'DEAT'], false, Auth::PRIV_HIDE, true) as $fact) {
+            if ($fact->isPendingDeletion()) {
+                continue;
+            }
+
+            $lines = explode("\n", $fact->gedcom());
+
+            if ($fact->tag() === 'INDI:FACT') {
+                if (!self::isIllness($fact) || mb_strtolower(self::text($fact->value())) !== $old) {
+                    continue;
+                }
+
+                $lines[0] = '1 FACT ' . $value;
+            } else {
+                $cause = array_search(true, array_map(static fn (string $line): bool => str_starts_with($line, '2 CAUS ') && mb_strtolower(self::text(substr($line, 7))) === $old, $lines), true);
+
+                if ($cause === false) {
+                    continue;
+                }
+
+                $lines[$cause] = '2 CAUS ' . $value;
+            }
+
+            $individual->updateFact($fact->id(), implode("\n", $lines), true);
+            $changed++;
+        }
+
+        return $changed;
     }
 
     private static function isIllness(Fact $fact): bool
