@@ -4,10 +4,10 @@
 
 Erkrankungen im Stammbaum erfassen und für den Arzt zusammenfassen: *„Gab es das in Ihrer Familie schon?“*
 
-> In Arbeit – bisher die Sichtbarkeitsregel, eine einfache Liste der Erkrankungen, die man sehen darf (Seite
-> „Familiengesundheit“, Menü *Listen*), der Katalog, das Eintragen und die Familienanamnese für den Arzt. Die Ansicht in
-> der App folgt.
-> Der Plan steht in [webtrees-mobile#54](https://github.com/Schoaf/webtrees-mobile/issues/54).
+Funktioniert besonders gut zusammen mit der App [webtrees-mobile](https://github.com/Schoaf/webtrees-mobile) – siehe
+[Auf dem Handy](#auf-dem-handy).
+
+<img src="docs/history.png" width="700" alt="Familienanamnese für den Arzt">
 
 ## Wie Erkrankungen gespeichert werden
 
@@ -58,6 +58,8 @@ Dasselbe Formular öffnet sich auf der Personenseite: *Tatsache hinzufügen* →
 Einstiegspunkt für ein eigenes Formular je Tatsache, deshalb stellt sich das Modul vor die webtrees-Seite *Tatsache
 hinzufügen* und leitet nur diesen Eintrag zu seinem Formular; der Eintrag selbst kommt nie in den Stammbaum.
 
+<img src="docs/list.png" width="400" alt="Seite Familiengesundheit mit dem Formular"> <img src="docs/record.png" width="400" alt="Erkrankung über Tatsache hinzufügen eintragen">
+
 ## Familienanamnese
 
 Die Schaltfläche *Familienanamnese* auf der Seite öffnet, was ein Arzt fragt: für die eigene Person – oder eines der
@@ -67,6 +69,17 @@ die vor einem festgelegten Alter diagnostiziert wurde (Standard 50, in den Einst
 *früh aufgetreten* markiert. Ein Filter zeigt nur eine Kategorie; *Drucken* lässt die Bedienelemente weg und ergänzt
 das Datum. Die eigenen Erkrankungen der Person gehören nicht dazu, und es erscheint nur, was die Sichtbarkeitsregel
 erlaubt.
+
+## Auf dem Handy
+
+Die App [webtrees-mobile](https://github.com/Schoaf/webtrees-mobile) (Android und iOS, mit
+[api4webtrees](https://github.com/thobgg/api4webtrees)) zeigt die Familienanamnese dort, wo man sie braucht – beim Arzt:
+nach Kategorie, mit Filter, früh aufgetretene markiert, und *Im Stammbaum zeigen* blendet alle ohne Erkrankung aus.
+Eintragen geht in der App ebenso. Die App erkennt das Modul von selbst; einzurichten ist nichts.
+
+<img src="docs/app-de.png" width="250" alt="Familiengesundheit in der App webtrees-mobile">
+
+[App Store](https://apps.apple.com/app/id6815108154) · [Google Play](https://play.google.com/store/apps/details?id=net.webtrees.webtreesmobile)
 
 ## JSON für Apps
 
@@ -86,6 +99,8 @@ veröffentlicht das Release mit dem Abschnitt aus dem Changelog als Text.
 
 `python3 tests/test_modul.py` baut ein frisches webtrees 2.2.6 mit SQLite unter `php -S` auf (nur 127.0.0.1) und
 testet dagegen.
+`tests/screenshots.py` macht auf dieselbe Weise die Screenshots in `docs/`, aus der Demo-Familie in `tests/demo.ged`
+(braucht Google Chrome und `pip install websocket-client`).
 
 ## Buy me a bagel 🥯
 

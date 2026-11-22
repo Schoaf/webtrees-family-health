@@ -4,10 +4,10 @@
 
 Record illnesses in your family tree and sum them up for the doctor: *"Any cases of this in your family?"*
 
-> Work in progress – so far the visibility rule, a plain list of the illnesses you may see (page "Family health",
-> menu *Lists*), the catalog, recording an illness and the family health history for the doctor. The app view is still
-> to come.
-> The plan is in [webtrees-mobile#54](https://github.com/Schoaf/webtrees-mobile/issues/54).
+Works especially well together with the [webtrees-mobile](https://github.com/Schoaf/webtrees-mobile) app – see
+[On the phone](#on-the-phone).
+
+<img src="docs/history.png" width="700" alt="Family health history for the doctor">
 
 ## How illnesses are stored
 
@@ -56,6 +56,8 @@ The same form opens from an individual's page: *Add a fact* → *Illness*. webtr
 per fact, so the module puts itself in front of webtrees' page *Add a fact* and sends only this entry to its form; the
 entry itself never reaches the tree.
 
+<img src="docs/list.png" width="400" alt="Page Family health with the form"> <img src="docs/record.png" width="400" alt="Record an illness from Add a fact">
+
 ## Family health history
 
 The button *Family health history* on the page opens what a doctor asks for: for your own individual – or one of your
@@ -64,6 +66,17 @@ children under 18 – the illnesses of their blood relatives, grouped by categor
 An illness diagnosed before a set age (default 50, changeable in the settings, 0 = off) is marked *early onset*.
 A filter shows one category only; *Print* leaves out the controls and adds the date. The individual's own illnesses
 are not part of it, and it only ever shows what the visibility rule lets you see.
+
+## On the phone
+
+The [webtrees-mobile](https://github.com/Schoaf/webtrees-mobile) app (Android and iOS, with
+[api4webtrees](https://github.com/thobgg/api4webtrees)) shows the family health history where you need it – at the
+doctor's: by category, with a filter, early onset marked, and *Show in the tree* fades everyone without an illness.
+Illnesses are recorded in the app as well. The app finds the module on its own; nothing to set up.
+
+<img src="docs/app.png" width="250" alt="Family health in the webtrees-mobile app">
+
+[App Store](https://apps.apple.com/app/id6815108154) · [Google Play](https://play.google.com/store/apps/details?id=net.webtrees.webtreesmobile)
 
 ## JSON for apps
 
@@ -89,6 +102,8 @@ release with the changelog section as notes.
 
 `python3 tests/test_modul.py` sets up a fresh webtrees 2.2.6 with SQLite under `php -S` (127.0.0.1 only) and tests
 against it.
+`tests/screenshots.py` makes the screenshots in `docs/` the same way, from the demo family in `tests/demo.ged` (needs
+Google Chrome and `pip install websocket-client`).
 
 ## Buy me a bagel 🥯
 
