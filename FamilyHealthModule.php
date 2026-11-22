@@ -35,6 +35,7 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 
 use function array_column;
+use function array_diff;
 use function array_flip;
 use function array_unique;
 use function array_values;
@@ -219,7 +220,7 @@ class FamilyHealthModule extends AbstractModule implements ModuleCustomInterface
             'own'        => Registry::individualFactory()->make($tree->getUserPreference($user, UserInterface::PREF_TREE_ACCOUNT_XREF), $tree),
             'catalog'    => $this->catalog()->entries(),
             'add_url'    => route('module', ['module' => $this->name(), 'action' => 'Add', 'tree' => $tree->name()]),
-            'categories' => Catalog::categoryNames(),
+            'categories' => $this->catalog()->categoryNames(),
             'history_url' => $this->historyUrl($tree, ''),
             'module_name' => $this->name(),
             'participation' => $this->participation($tree, $user),
@@ -360,7 +361,7 @@ class FamilyHealthModule extends AbstractModule implements ModuleCustomInterface
             'tree'        => $tree,
             'individual'  => $individual,
             'catalog'     => $this->catalog()->entries(),
-            'categories'  => Catalog::categoryNames(),
+            'categories'  => $this->catalog()->categoryNames(),
             'add_url'     => route('module', ['module' => $this->name(), 'action' => 'Add', 'tree' => $tree->name()]),
             'module_name' => $this->name(),
         ]);
@@ -377,7 +378,7 @@ class FamilyHealthModule extends AbstractModule implements ModuleCustomInterface
         $history  = $this->history($request);
         $groups   = [];
 
-        foreach (Catalog::CATEGORIES as $id) {
+        foreach ($this->catalog()->categoryIds() as $id) {
             foreach ($history['entries'] as $entry) {
                 if ($entry['category'] === $id && ($category === '' || $category === $id)) {
                     $groups[$id][] = $entry;
@@ -394,7 +395,7 @@ class FamilyHealthModule extends AbstractModule implements ModuleCustomInterface
             'groups'       => $groups,
             'used'         => array_values(array_unique(array_column($history['entries'], 'category'))),
             'category'     => $category,
-            'categories'   => Catalog::categoryNames(),
+            'categories'   => $this->catalog()->categoryNames(),
             'early_age'    => $this->earlyAge(),
             'opted_out'    => $history['opted_out'],
             'url'          => fn (string $xref, string $category): string => $this->historyUrl($tree, $xref, $category),
@@ -481,7 +482,7 @@ class FamilyHealthModule extends AbstractModule implements ModuleCustomInterface
         }
 
         $early_age = $this->earlyAge();
-        $order     = array_flip(Catalog::CATEGORIES);
+        $order     = array_flip($this->catalog()->categoryIds());
 
         foreach ($entries as $i => $entry) {
             $entries[$i]['age']      = Illnesses::ageAtDiagnosis($entry['individual'], $entry['date']);
@@ -766,7 +767,7 @@ class FamilyHealthModule extends AbstractModule implements ModuleCustomInterface
 
         $categories = [];
 
-        foreach (Catalog::categoryNames() as $id => $name) {
+        foreach ($this->catalog()->categoryNames() as $id => $name) {
             $categories[] = ['id' => $id, 'name' => $name];
         }
 
@@ -789,11 +790,13 @@ class FamilyHealthModule extends AbstractModule implements ModuleCustomInterface
             'limit'      => self::MAX_DEGREE_LIMIT,
             'early_age'  => $this->earlyAge(),
             'early_limit' => self::EARLY_AGE_LIMIT,
-            'categories' => Catalog::categoryNames(),
+            'categories' => $this->catalog()->categoryNames(),
             'catalog'    => $this->catalog()->entries(),
             'missing'    => $this->catalog()->namesNotInCatalog(),
             'max_length' => Catalog::NAME_MAX_LENGTH,
             'usage'      => $this->usageWithLinks(),
+            'category_max_length' => Catalog::CATEGORY_MAX_LENGTH,
+            'fallback_category'   => Catalog::FALLBACK_CATEGORY,
         ]);
     }
 
@@ -846,6 +849,21 @@ class FamilyHealthModule extends AbstractModule implements ModuleCustomInterface
         // The catalog as rows of the form; a row without a category, or marked for deletion, is left out. Only when
         // the form had the catalog at all - a post without it keeps the catalog as it is.
         if (Validator::parsedBody($request)->string('catalog_form', '') === '1') {
+            $rows = [];
+
+            foreach (Validator::parsedBody($request)->array('categories') as $row) {
+                if (is_array($row)) {
+                    $rows[] = ['id' => (string) ($row['id'] ?? ''), 'name' => (string) ($row['name'] ?? ''), 'delete' => ($row['delete'] ?? '') !== ''];
+                }
+            }
+
+            $before = $this->catalog()->categoryIds();
+
+            if ($rows !== []) {
+                $this->catalog()->saveCategories($rows);
+            }
+
+            $deleted = array_diff($before, $this->catalog()->categoryIds());
             $entries = [];
             $renamed = [];
             $renames = [];
@@ -857,7 +875,10 @@ class FamilyHealthModule extends AbstractModule implements ModuleCustomInterface
 
                 $name     = trim((string) ($row['name'] ?? ''));
                 $original = trim((string) ($row['original'] ?? ''));
-                $entry    = ['category' => (string) ($row['category'] ?? ''), 'icd' => (string) ($row['icd'] ?? '')];
+                $category = (string) ($row['category'] ?? '');
+                // A category deleted in the same form: its illnesses go to "other", like the saved ones.
+                $category = in_array($category, $deleted, true) ? Catalog::FALLBACK_CATEGORY : $category;
+                $entry    = ['category' => $category, 'icd' => (string) ($row['icd'] ?? '')];
 
                 if ($original !== '' && $name !== '' && $original !== $name) {
                     $renamed[$name]     = $entry;

@@ -9,7 +9,9 @@ use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Module\AbstractModule;
 use Fisharebest\Webtrees\Site;
 
+use function array_fill_keys;
 use function array_key_exists;
+use function array_keys;
 use function array_map;
 use function array_unique;
 use function explode;
@@ -20,7 +22,9 @@ use function is_string;
 use function json_decode;
 use function json_encode;
 use function mb_strlen;
+use function max;
 use function mb_strtolower;
+use function mb_substr;
 use function preg_match;
 use function strtoupper;
 use function trim;
@@ -37,11 +41,23 @@ use const JSON_UNESCAPED_UNICODE;
  */
 final class Catalog
 {
-    public const array CATEGORIES = [
-        'cardiovascular', 'cancer', 'metabolic', 'autoimmune', 'neurological', 'mental', 'lung', 'kidney', 'hereditary', 'other',
+    // The categories to start with; an administrator renames, adds and deletes them (all but "other").
+    private const array DEFAULT_CATEGORIES = [
+        'cardiovascular', 'cancer', 'metabolic', 'autoimmune', 'neurological', 'mental', 'lung', 'kidney', 'hereditary',
+        'natural-death', 'unnatural-death', 'other',
     ];
 
+    // Where an illness without a category - or whose category was deleted - goes.
+    public const string FALLBACK_CATEGORY = 'other';
+
+    public const int CATEGORY_MAX_LENGTH = 60;
+
     private const string SETTING = 'catalog';
+
+    private const string CATEGORY_SETTING = 'categories';
+
+    /** @var array<string,string>|null category => the name an administrator gave it, '' for the built-in name */
+    private array|null $categories = null;
 
     public const int NAME_MAX_LENGTH = 120;
 
@@ -56,9 +72,109 @@ final class Catalog
     }
 
     /**
-     * @return array<string,string> category => its name in the user's language
+     * @return array<string,string> category => its name: the one an administrator gave it, else the built-in one in
+     *                              the user's language - in the administrator's order
      */
-    public static function categoryNames(): array
+    public function categoryNames(): array
+    {
+        $builtin = self::builtinNames();
+        $names   = [];
+
+        foreach ($this->categorySettings() as $id => $name) {
+            $names[$id] = $name !== '' ? $name : ($builtin[$id] ?? $id);
+        }
+
+        return $names;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function categoryIds(): array
+    {
+        return array_keys($this->categorySettings());
+    }
+
+    /**
+     * @return array<string,string> category => the name an administrator gave it, '' for the built-in name
+     */
+    public function categorySettings(): array
+    {
+        if ($this->categories === null) {
+            $stored           = json_decode($this->module->getPreference(self::CATEGORY_SETTING), true);
+            $this->categories = [];
+
+            foreach (is_array($stored) ? $stored : array_fill_keys(self::DEFAULT_CATEGORIES, '') as $id => $name) {
+                if (is_string($id) && $id !== '' && is_string($name)) {
+                    $this->categories[$id] = $name;
+                }
+            }
+
+            $this->categories += [self::FALLBACK_CATEGORY => ''];
+        }
+
+        return $this->categories;
+    }
+
+    /**
+     * Saves the categories from the administrator's form: existing ones renamed or deleted (their illnesses go to
+     * "other"), new ones added at the end. A name like the built-in one keeps following the user's language.
+     *
+     * @param list<array{id:string,name:string,delete:bool}> $rows
+     */
+    public function saveCategories(array $rows): void
+    {
+        $builtin = self::builtinNames();
+        $old     = $this->categorySettings();
+        $new     = [];
+        $next    = 1;
+
+        foreach (array_keys($old) as $id) {
+            if (preg_match('/^custom-(\d+)$/', $id, $match) === 1) {
+                $next = max($next, (int) $match[1] + 1);
+            }
+        }
+
+        foreach ($rows as $row) {
+            $name = mb_substr(trim($row['name']), 0, self::CATEGORY_MAX_LENGTH);
+            $id   = $row['id'];
+
+            if ($id === '') {
+                if ($name !== '' && !$row['delete']) {
+                    $new['custom-' . $next++] = $name;
+                }
+            } elseif (array_key_exists($id, $old) && ($id === self::FALLBACK_CATEGORY || !$row['delete'])) {
+                $new[$id] = $name === ($builtin[$id] ?? '') ? '' : $name;
+            }
+        }
+
+        // Without a name a custom category has nothing to show - it keeps the one it had.
+        foreach ($new as $id => $name) {
+            if ($name === '' && !array_key_exists($id, $builtin)) {
+                $new[$id] = $old[$id];
+            }
+        }
+
+        $new += [self::FALLBACK_CATEGORY => $old[self::FALLBACK_CATEGORY] ?? ''];
+
+        // The illnesses of a deleted category go to "other" - before the catalog is cleaned against the new list.
+        $entries          = $this->entries();
+        $this->categories = $new;
+
+        foreach ($entries as $name => $entry) {
+            if (!array_key_exists($entry['category'], $new)) {
+                $entries[$name]['category'] = self::FALLBACK_CATEGORY;
+            }
+        }
+
+        $this->module->setPreference(self::CATEGORY_SETTING, (string) json_encode($new, JSON_UNESCAPED_UNICODE));
+        $this->save($entries);
+    }
+
+    /**
+     * @return array<string,string> category => its built-in name in the user's language
+     */
+    private static function builtinNames(): array
     {
         return [
             'cardiovascular' => I18N::translate('Heart and circulation'),
@@ -70,6 +186,8 @@ final class Catalog
             'lung'           => I18N::translate('Lungs'),
             'kidney'         => I18N::translate('Kidneys'),
             'hereditary'     => I18N::translate('Hereditary syndromes'),
+            'natural-death'  => I18N::translate('Natural cause of death'),
+            'unnatural-death' => I18N::translate('Unnatural cause of death'),
             'other'          => I18N::translate('Other'),
         ];
     }
@@ -83,7 +201,7 @@ final class Catalog
             $stored = json_decode($this->module->getPreference(self::SETTING), true);
 
             if (is_array($stored)) {
-                $this->entries = self::clean($stored);
+                $this->entries = $this->clean($stored);
             } else {
                 // Saved right away, so the list doesn't change with the language of whoever looks next.
                 $this->save(self::starterList());
@@ -116,7 +234,7 @@ final class Catalog
      */
     public function save(array $entries): void
     {
-        $this->entries = self::clean($entries);
+        $this->entries = $this->clean($entries);
         $this->module->setPreference(self::SETTING, (string) json_encode($this->entries, JSON_UNESCAPED_UNICODE));
     }
 
@@ -179,7 +297,7 @@ final class Catalog
      *
      * @return array<string,array{category:string,icd:string}>
      */
-    private static function clean(array $entries): array
+    private function clean(array $entries): array
     {
         $clean = [];
         $seen  = [];
@@ -190,7 +308,7 @@ final class Catalog
             $icd      = is_array($entry) && is_string($entry['icd'] ?? null) ? strtoupper(trim($entry['icd'])) : '';
             $key      = mb_strtolower($name);
 
-            if ($name === '' || mb_strlen($name) > self::NAME_MAX_LENGTH || array_key_exists($key, $seen) || !in_array($category, self::CATEGORIES, true)) {
+            if ($name === '' || mb_strlen($name) > self::NAME_MAX_LENGTH || array_key_exists($key, $seen) || !in_array($category, $this->categoryIds(), true)) {
                 continue;
             }
 

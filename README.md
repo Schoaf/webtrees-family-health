@@ -46,7 +46,9 @@ individual's page.
 
 Each illness name has a category and, optionally, an ICD-10 code – the name, not each entry, so it stays the same
 everywhere. Categories: heart and circulation, cancer, diabetes and metabolism, autoimmune, nervous system and dementia,
-mental health, lungs, kidneys, hereditary syndromes, other. An illness not in the catalog counts as *other*.
+mental health, lungs, kidneys, hereditary syndromes, natural cause of death, unnatural cause of death, other. An
+illness not in the catalog counts as *other*. Administrators rename, add and delete categories in the module's settings;
+the illnesses of a deleted category go to *other*, which stays.
 
 The catalog starts with about 40 common illnesses in the site's language (German or English) and is edited in the
 module's settings, which also list names used in a tree but missing from the catalog. Renaming a name there offers to

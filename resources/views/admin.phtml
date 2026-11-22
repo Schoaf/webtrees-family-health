@@ -17,6 +17,8 @@ use Fisharebest\Webtrees\View;
  * @var array<string,array{category:string,icd:string}> $catalog
  * @var list<string>                                    $missing
  * @var int                                             $max_length
+ * @var int                                             $category_max_length
+ * @var string                                          $fallback_category
  * @var array<string,array{count:int,links:list<array{tree:string,url:string}>}> $usage
  */
 
@@ -75,6 +77,42 @@ $i = 0;
             <div class="form-text"><?= I18N::translate('In the family history, an illness diagnosed before this age is marked as early onset. 0 = do not mark.') ?></div>
         </div>
     </div>
+
+    <h2 class="h4"><?= I18N::translate('Categories') ?></h2>
+    <p class="form-text"><?= I18N::translate('Rename a category or add one. The illnesses of a deleted category go to “Other”.') ?></p>
+
+    <table class="table table-sm align-middle w-auto">
+        <thead>
+            <tr>
+                <th><?= I18N::translate('Category') ?></th>
+                <th><?= I18N::translate('Delete') ?></th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php $c = 0 ?>
+            <?php foreach ($categories as $id => $label) : ?>
+                <tr>
+                    <td>
+                        <input type="hidden" name="categories[<?= $c ?>][id]" value="<?= e($id) ?>">
+                        <input class="form-control form-control-sm" name="categories[<?= $c ?>][name]" value="<?= e($label) ?>" maxlength="<?= $category_max_length ?>" aria-label="<?= I18N::translate('Category') ?>">
+                    </td>
+                    <td>
+                        <?php if ($id !== $fallback_category) : ?>
+                            <input class="form-check-input" type="checkbox" name="categories[<?= $c ?>][delete]" value="1" aria-label="<?= I18N::translate('Delete') ?>">
+                        <?php endif ?>
+                    </td>
+                </tr>
+                <?php $c++ ?>
+            <?php endforeach ?>
+            <tr>
+                <td>
+                    <input type="hidden" name="categories[<?= $c ?>][id]" value="">
+                    <input class="form-control form-control-sm" name="categories[<?= $c ?>][name]" value="" maxlength="<?= $category_max_length ?>" placeholder="<?= I18N::translate('New category') ?>" aria-label="<?= I18N::translate('New category') ?>">
+                </td>
+                <td></td>
+            </tr>
+        </tbody>
+    </table>
 
     <h2 class="h4"><?= I18N::translate('Illness catalog') ?></h2>
     <p class="form-text"><?= I18N::translate('Each illness name with its category and, if you like, its ICD-10 code. The names are suggested when entering an illness, so the same illness is always spelled the same way.') ?></p>

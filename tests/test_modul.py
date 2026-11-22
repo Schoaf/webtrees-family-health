@@ -158,6 +158,38 @@ class ModulTest(unittest.TestCase):
         self.assertEqual("lung", namen["Markerneu2"]["category"])
         self.assertIn("Personen: 1", admin.get("Admin").text)
 
+    def test_kategorien(self):
+        admin = U.sitzung("admin")
+
+        def zurueck():
+            umgebung.sql("DELETE FROM wt_module_setting WHERE module_name='_family-health_' AND setting_name IN ('catalog', 'categories')")
+
+        self.addCleanup(zurueck)
+
+        def kategorien():
+            return {k["id"]: k["name"] for k in U.sitzung("mitglied").get("Catalog", "testbaum").json["categories"]}
+
+        # Neu dabei: natuerliche und nicht natuerliche Todesursache
+        self.assertEqual("Natürliche Todesursache", kategorien()["natural-death"])
+        self.assertEqual("Nicht natürliche Todesursache", kategorien()["unnatural-death"])
+
+        felder = {"catalog_form": "1", "max_degree": "0",
+                  "categories[0][id]": "lung", "categories[0][name]": "Atemwege",
+                  "categories[1][id]": "kidney", "categories[1][name]": "Niere", "categories[1][delete]": "1",
+                  "categories[2][id]": "other", "categories[2][name]": "Sonstiges", "categories[2][delete]": "1",
+                  "categories[3][id]": "", "categories[3][name]": "Unfälle",
+                  "entries[0][original]": "Markermutter", "entries[0][name]": "Markermutter", "entries[0][category]": "kidney"}
+        self.assertIn(admin.formular("Admin", felder).status, (302, 303))
+        neu = kategorien()
+        self.assertEqual("Atemwege", neu["lung"])
+        self.assertNotIn("kidney", neu)
+        # "Sonstiges" laesst sich nicht loeschen; die neue bekommt eine eigene Kennung
+        self.assertEqual(["lung", "other", "custom-1"], list(neu))
+        self.assertEqual("Unfälle", neu["custom-1"])
+        # Die Erkrankung der geloeschten Kategorie kommt zu "Sonstiges"
+        self.assertEqual("other", self._kategorie("Markermutter"))
+        self.assertIn('value="Unfälle"', admin.get("Admin").text)
+
     def _kategorie(self, krankheit):
         for e in U.sitzung("mitglied").get("Illnesses", "testbaum").json["illnesses"]:
             if e["illness"] == krankheit:

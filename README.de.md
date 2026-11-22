@@ -46,8 +46,10 @@ webtrees selbst zeigt Verwaltern die vertraulichen Fakten auf der Personenseite 
 
 Jede Erkrankung hat eine Kategorie und auf Wunsch einen ICD-10-Code – am Namen, nicht an jedem Eintrag, damit sie
 überall gleich bleibt. Kategorien: Herz und Kreislauf, Krebs, Diabetes und Stoffwechsel, Autoimmun, Nervensystem und
-Demenz, Psychische Gesundheit, Lunge, Niere, Erbliche Syndrome, Sonstiges. Eine Erkrankung, die nicht im Katalog
-steht, zählt als *Sonstiges*.
+Demenz, Psychische Gesundheit, Lunge, Niere, Erbliche Syndrome, Natürliche Todesursache, Nicht natürliche
+Todesursache, Sonstiges. Eine Erkrankung, die nicht im Katalog steht, zählt als *Sonstiges*. Admins benennen
+Kategorien in den Einstellungen des Moduls um, fügen welche hinzu oder löschen sie; die Erkrankungen einer gelöschten
+Kategorie kommen zu *Sonstiges*, das bleibt.
 
 Der Katalog beginnt mit rund 40 häufigen Erkrankungen in der Sprache der Website (Deutsch oder Englisch) und wird in den
 Einstellungen des Moduls gepflegt. Dort stehen auch Namen, die in einem Stammbaum vorkommen, aber im Katalog fehlen.

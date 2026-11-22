@@ -2,7 +2,6 @@
 
 declare(strict_types=1);
 
-use FamilyHealth\Catalog;
 use Fisharebest\Webtrees\Date;
 use Fisharebest\Webtrees\I18N;
 use Fisharebest\Webtrees\Individual;
@@ -25,7 +24,7 @@ use Fisharebest\Webtrees\Tree;
  * @var list<array{individual:Individual,degree:int}>                                $opted_out
  */
 
-$category_names = Catalog::categoryNames();
+$category_names = $categories;
 
 ?>
 

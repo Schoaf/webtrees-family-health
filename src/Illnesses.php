@@ -421,7 +421,7 @@ final class Illnesses
     {
         $known = $catalog->find($name);
 
-        if ($known === null && in_array($category, Catalog::CATEGORIES, true)) {
+        if ($known === null && in_array($category, $catalog->categoryIds(), true)) {
             $catalog->add($name, $category);
         }
 
